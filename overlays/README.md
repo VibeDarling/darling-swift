@@ -1,6 +1,6 @@
 # arm64 Swift SDK overlays
 
-Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in this repository were x86_64-only (Swift 5.2.2). `build.sh` builds arm64 slices of six of them and merges them into the existing universal binaries. The x86_64 slices are unchanged. Four are built from the last open-source Swift sources; `os` and `XPC` were never open source, so they are written from Apple's public API documentation and the imported symbol names (no Apple code).
+Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in this repository were x86_64-only (Swift 5.2.2). `build.sh` builds arm64 slices of seven of them and merges them into the existing universal binaries. The x86_64 slices are unchanged. Four are built from the last open-source Swift sources; `os` and `XPC` were never open source, so they are written from Apple's public API documentation and the imported symbol names (no Apple code).
 
 | Overlay | Sources | Notes |
 |---|---|---|
@@ -10,8 +10,13 @@ Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in 
 | `libswiftDispatch` | `release/5.4`, `stdlib/public/Darwin/Dispatch` | `Schedulers+DispatchQueue.swift` is dropped (it needs Combine). `Darling+NewerSDK.swift` and a designated `DispatchWorkItem.init(flags:block:)` add APIs from newer SDKs. `DarlingSerialExecutor.m` defines `OS_dispatch_queue_serial_executor` until Darling's libdispatch does |
 | `libswiftos` | Clean-room (`os/os.swift`) | `Logger`, `os_log`, `os_signpost`, `OSSignpostID`, `OSSignposter`, `OSSignpostIntervalState`, `OSAllocatedUnfairLock`, and the `OSLog`/`OSLogType`/`OSSignpostType` extensions. `os_log` encodes arguments into the os_log buffer format and calls `_os_log_impl`. Signposts report as disabled: Darling's libsystem_trace signpost entry points abort |
 | `libswiftXPC` | Clean-room (`XPC/XPC.swift`) | `XPCSession`, `XPCDictionary` (copy-on-write, with Bool/String/integer/object/dictionary/array subscripts), `XPCArray` and `XPCRichError`, on top of libxpc's C API |
+| `libswiftFoundation` | `release/5.4` `stdlib/public/Darwin/Foundation/String.swift`, reduced | **Intentionally partial:** only `String` ↔ `NSString` bridging (`_ObjectiveCBridgeable`, `String(_: NSString)`) and the `-[NSObject newTaggedNSStringWithASCIIBytes_:length_:]` hook the runtime uses to bridge small ASCII strings. The arm64 slice replaces none of the x86_64 slice's API |
 
 Sources from the Swift project are licensed under the Apache License v2.0 with Runtime Library Exception. `os/`, `XPC/`, `Dispatch/Darling+NewerSDK.swift`, `Dispatch/DarlingSerialExecutor.m`, `Dispatch/include/swift/Runtime/Debug.h` and `tests/` were written for Darling.
+
+### Why Foundation is bridging-only
+
+The full 5.4 Foundation overlay doesn't compile against Darling's Foundation headers, which have no `@property` declarations, nullability or Swift names; that gives about 2,300 errors. It also calls Objective-C APIs Darling lacks. macOS 14+ apps import their Swift Foundation symbols (1,616 of them in macOS 26's apps) from `Foundation.framework` itself, so a fuller overlay would also need Darling's Foundation to re-export it. Bridging `String` is the piece Swift code needs first. To be useful from Swift, it relies on `Foundation.apinotes` `SwiftBridge` entries (VibeDarling/darling-foundation#5).
 
 ## Coverage of what macOS 26 apps import
 
@@ -22,11 +27,12 @@ Measured against every binary in `/System/Applications` of a macOS 26.6.2 instal
 - **os:** 44/44.
 - **XPC:** 21/21.
 - **Dispatch:** 94/104. The missing 10 are the Combine `Scheduler` conformance of `DispatchQueue` and its `SchedulerTimeType`/`SchedulerOptions` types (Combine is closed source).
+- **Foundation:** 5 of 1,616: the `String` bridging entry points. Apps bind these symbols to `Foundation.framework`, so they don't resolve against this dylib until Darling's Foundation re-exports it.
 
 ## Building
 
-See the header of `build.sh` for the required toolchain, resource directory, and Darling SDK/ld64/libSystem paths. The Darling SDK must include the Clang module maps for Darwin, ObjectiveC, Dispatch, os and CoreFoundation, and the `sys/cdefs.h` default-platform fix. Without that fix, arm64 code links against `$UNIX2003` symbol variants that don't exist.
+See the header of `build.sh` for the required toolchain, resource directory, and Darling SDK/ld64/libSystem paths. The Darling SDK must include the Clang module maps for Darwin, ObjectiveC, Dispatch, os, XPC, CoreFoundation and Foundation, and the `sys/cdefs.h` default-platform fix. Without that fix, arm64 code links against `$UNIX2003` symbol variants that don't exist. Foundation also needs the CoreServices sub-frameworks (`AE`, `CarbonCore`) reachable as top-level frameworks and the `libDER/DERItem.h` guard.
 
 ## Tests
 
-`tests/os_xpc.swift` covers `Logger`, `os_log` with arguments, signpost IDs and intervals, `OSAllocatedUnfairLock` across threads, `XPCDictionary`/`XPCArray` and `XPCSession`. `tests/objc_only.swift` and `tests/objc_cf.swift` cover an NSObject subclass with `@objc` methods and selectors, NSObject `Equatable`/`Hashable`, `autoreleasepool`, `ObjCBool`, CF types as `Hashable` (`_CFObject`), CFString round trips, and CGFloat. Build them for `arm64-apple-macosx26.0` against these overlays, link with Darling's ld64 (plus `-Xfrontend -disable-objc-attr-requires-foundation-module`, since there is no Foundation Swift overlay), and run them with `darling shell`.
+`tests/os_xpc.swift` covers `Logger`, `os_log` with arguments, signpost IDs and intervals, `OSAllocatedUnfairLock` across threads, `XPCDictionary`/`XPCArray` and `XPCSession`. `tests/objc_only.swift` and `tests/objc_cf.swift` cover an NSObject subclass with `@objc` methods and selectors, NSObject `Equatable`/`Hashable`, `autoreleasepool`, `ObjCBool`, CF types as `Hashable` (`_CFObject`), CFString round trips, and CGFloat. `tests/string_bridging.swift` covers `String` ↔ `NSString` conversions, `String` arguments and results of Objective-C methods, `AnyObject` casts and small-string bridging. It passes 8/8 under Darling with darling-foundation#6 installed. Before that fix, `-[NSString uppercaseString]` on a Swift-native string returned garbage. Build the tests for `arm64-apple-macosx26.0` against these overlays, link with Darling's ld64 (`objc_only`/`objc_cf` also need `-Xfrontend -disable-objc-attr-requires-foundation-module`), and run them with `darling shell`.

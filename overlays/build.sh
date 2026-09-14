@@ -77,7 +77,11 @@ build_module Dispatch "$here"/Dispatch/*.swift --link "$out/obj/Dispatch.mm.o" "
 build_module os "$here/os/os.swift" -- -Xcc -fmodule-map-file="$here/os/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 
-for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC; do
+# Intentionally partial: String bridging only (see README).
+foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+build_module Foundation "$here/Foundation/String.swift" --link "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+
+for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation; do
 	dylib="libswift$module.dylib"
 	llvm-lipo -thin x86_64 "$repo/$dylib" -output "$out/$dylib.x86_64" 2>/dev/null || cp "$repo/$dylib" "$out/$dylib.x86_64"
 	llvm-lipo -create "$out/$dylib.x86_64" "$out/$dylib" -output "$repo/$dylib"
