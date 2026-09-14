@@ -30,3 +30,5 @@ See the header of `build.sh` for the required toolchain, resource directory, and
 ## Tests
 
 `tests/os_xpc.swift` covers `Logger`, `os_log` with arguments, signpost IDs and intervals, `OSAllocatedUnfairLock` across threads, `XPCDictionary`/`XPCArray` and `XPCSession`. `tests/objc_only.swift` and `tests/objc_cf.swift` cover an NSObject subclass with `@objc` methods and selectors, NSObject `Equatable`/`Hashable`, `autoreleasepool`, `ObjCBool`, CF types as `Hashable` (`_CFObject`), CFString round trips, and CGFloat. Build them for `arm64-apple-macosx26.0` against these overlays, link with Darling's ld64 (plus `-Xfrontend -disable-objc-attr-requires-foundation-module`, since there is no Foundation Swift overlay), and run them with `darling shell`.
+
+`tests/utt_stubs.swift` checks that the stubs in `../libswiftUniformTypeIdentifiers.S` return valid values when called the way clients of the resilient UniformTypeIdentifiers module call them. Build and run it like the tests above, linking it against libswiftCore, libobjc and the built `libswiftUniformTypeIdentifiers.dylib`.
