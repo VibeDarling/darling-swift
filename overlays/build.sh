@@ -81,8 +81,13 @@ build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shim
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
 build_module Foundation "$here"/Foundation/*.swift --link "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
 
+build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" --link "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
 
-for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation; do
+# Minimal clean-room AppKit overlay (see README).
+appkit="$DARLING_ROOT/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
+build_module AppKit "$here/AppKit/AppKit.swift" -- -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
+
+for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation CoreGraphics AppKit; do
 	dylib="libswift$module.dylib"
 	llvm-lipo -thin x86_64 "$repo/$dylib" -output "$out/$dylib.x86_64" 2>/dev/null || cp "$repo/$dylib" "$out/$dylib.x86_64"
 	llvm-lipo -create "$out/$dylib.x86_64" "$out/$dylib" -output "$repo/$dylib"

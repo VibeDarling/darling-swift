@@ -1,6 +1,6 @@
 # arm64 Swift SDK overlays
 
-Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in this repository were x86_64-only (Swift 5.2.2). `build.sh` builds arm64 slices of seven of them and merges them into the existing universal binaries. The x86_64 slices are unchanged. Four are built from the last open-source Swift sources; `os` and `XPC` were never open source, so they are written from Apple's public API documentation and the imported symbol names (no Apple code).
+Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in this repository were x86_64-only (Swift 5.2.2). `build.sh` builds arm64 slices of nine of them and merges them into the existing universal binaries. The x86_64 slices are unchanged. Four are built from the last open-source Swift sources; `os` and `XPC` were never open source, so they are written from Apple's public API documentation and the imported symbol names (no Apple code).
 
 | Overlay | Sources | Notes |
 |---|---|---|
@@ -11,8 +11,10 @@ Swift.org toolchains stopped shipping the Darwin SDK overlays, so the copies in 
 | `libswiftos` | Clean-room (`os/os.swift`) | `Logger`, `os_log`, `os_signpost`, `OSSignpostID`, `OSSignposter`, `OSSignpostIntervalState`, `OSAllocatedUnfairLock`, and the `OSLog`/`OSLogType`/`OSSignpostType` extensions. `os_log` encodes arguments into the os_log buffer format and calls `_os_log_impl`. Signposts report as disabled: Darling's libsystem_trace signpost entry points abort |
 | `libswiftXPC` | Clean-room (`XPC/XPC.swift`) | `XPCSession`, `XPCDictionary` (copy-on-write, with Bool/String/integer/object/dictionary/array subscripts), `XPCArray` and `XPCRichError`, on top of libxpc's C API |
 | `libswiftFoundation` | `release/5.4` `stdlib/public/Darwin/Foundation/{String,NSArray,NSDictionary,NSSet}.swift`, reduced | **Intentionally partial:** only the `_ObjectiveCBridgeable` conformances of `String`, `Array`, `Dictionary` and `Set`, `String(_: NSString)`, and the `-[NSObject newTaggedNSStringWithASCIIBytes_:length_:]` hook the runtime uses to bridge small ASCII strings. Non-verbatim `Dictionary` bridging always uses the 5.4 overlay's enumeration path, so it doesn't need the `__NSDictionaryGetObjects` shim. The arm64 slice replaces none of the x86_64 slice's API |
+| `libswiftCoreGraphics` | Written for Darling (`CoreGraphics/CoreGraphics.swift`) | Only `@_exported import CoreFoundation`. Darling's CoreGraphics has no Clang module, and `CGFloat` lives in the CoreFoundation overlay. The module lets the Clang importer map C `CGFloat` to `CoreGraphics.CGFloat`, and gives arm64 binaries that autolink `libswiftCoreGraphics` a slice |
+| `libswiftAppKit` | Clean-room (`AppKit/AppKit.swift`) | **Intentionally minimal:** `CGRect.fill(using:)`, `CGRect.frame(withWidth:using:)` and `NSSound.beep()`, on top of AppKit's `NSRectFillUsingOperation`, `NSFrameRectWithWidthUsingOperation` and `NSBeep`. Darling's AppKit has no Clang module, so `AppKit/shims` declares just those. `NSCompositingOperation` is a named enum there, because an anonymous `typedef enum` would mangle as a typealias instead of `So22NSCompositingOperationV` |
 
-Sources from the Swift project are licensed under the Apache License v2.0 with Runtime Library Exception. `os/`, `XPC/`, `Dispatch/Darling+NewerSDK.swift`, `Dispatch/DarlingSerialExecutor.m`, `Dispatch/include/swift/Runtime/Debug.h` and `tests/` were written for Darling.
+Sources from the Swift project are licensed under the Apache License v2.0 with Runtime Library Exception. `AppKit/`, `CoreGraphics/`, `os/`, `XPC/`, `Dispatch/Darling+NewerSDK.swift`, `Dispatch/DarlingSerialExecutor.m`, `Dispatch/include/swift/Runtime/Debug.h` and `tests/` were written for Darling.
 
 ### Why Foundation is bridging-only
 
@@ -28,6 +30,7 @@ Measured against every binary in `/System/Applications` of a macOS 26.6.2 instal
 - **XPC:** 21/21.
 - **Dispatch:** 94/104. The missing 10 are the Combine `Scheduler` conformance of `DispatchQueue` and its `SchedulerTimeType`/`SchedulerOptions` types (Combine is closed source).
 - **Foundation:** 16 of the 1,288 unique Swift symbols apps bind to `Foundation.framework`: the `String`, `Array`, `Dictionary` and `Set` bridging entry points. That fully covers TextEdit. Apps bind these symbols to `Foundation.framework`, so they only resolve once Darling's Foundation re-exports this dylib (a CMake `-reexport_library`, tested by adding the load command to a copy of Foundation).
+- **AppKit:** 3 of the 110 unique Swift symbols apps bind to `AppKit.framework`. That fully covers TextEdit and Calculator; Freeform and Reminders also use them. The rest is mostly `NSDiffableDataSourceSnapshot`/`NSCollectionViewDiffableDataSource` and a few property wrappers. AppKit.framework has to re-export `libswiftAppKit`, the same way Foundation re-exports `libswiftFoundation`. With both re-exports in place, TextEdit loads 241 libraries and stops only at TextKit 2 classes that Darling's AppKit doesn't implement yet.
 
 ## Building
 
