@@ -48,15 +48,28 @@ let current = TimeZone.current
 check(current.identifier == (NSTimeZone.default()?.name() ?? ""), "current matches +[NSTimeZone defaultTimeZone] (\(current.identifier))")
 check(current.secondsFromGMT() == (NSTimeZone.default()?.secondsFromGMT() ?? -1), "current secondsFromGMT()")
 check((NSTimeZone.system() as TimeZone).identifier == (NSTimeZone.system()?.name() ?? ""), "systemTimeZone bridges without touching +localTimeZone")
-// Darling's +localTimeZone dereferences getenv("TZ"), so only exercise autoupdatingCurrent when TZ is set.
-if getenv("TZ") != nil {
-    check(TimeZone.autoupdatingCurrent == TimeZone.autoupdatingCurrent && TimeZone.autoupdatingCurrent != current, "autoupdatingCurrent equality")
-    check((TimeZone.autoupdatingCurrent as NSTimeZone as TimeZone) == TimeZone.autoupdatingCurrent, "autoupdatingCurrent bridges round trip")
-} else {
-    print("note: TZ is unset, skipping autoupdatingCurrent (Darling's +localTimeZone needs it)")
+// autoupdatingCurrent works with TZ unset, valid or unresolvable. Darling's +localTimeZone crashes without TZ, so it is
+// only queried when TZ is set.
+let autoupdating = TimeZone.autoupdatingCurrent
+check(autoupdating == TimeZone.autoupdatingCurrent && autoupdating != current, "autoupdatingCurrent equality")
+let localZone = getenv("TZ") != nil ? NSTimeZone.local() : nil
+check(autoupdating.identifier == (localZone?.name() ?? current.identifier), "autoupdatingCurrent identifier (\(autoupdating.identifier))")
+if localZone != nil {
+    check((autoupdating as NSTimeZone as TimeZone) == autoupdating, "autoupdatingCurrent bridges round trip")
+}
+// With a valid TZ, Darling's +defaultTimeZone can be the +localTimeZone instance itself, which bridging can't tell apart.
+if localZone == nil || NSTimeZone.default() !== localZone {
+    check((NSTimeZone.default() as TimeZone) != autoupdating, "+defaultTimeZone bridges as a fixed time zone")
 }
 
 check(TimeZone.knownTimeZoneIdentifiers.contains("Europe/Paris"), "knownTimeZoneIdentifiers (\(TimeZone.knownTimeZoneIdentifiers.count))")
 check(!TimeZone.abbreviationDictionary.isEmpty, "abbreviationDictionary (\(TimeZone.abbreviationDictionary.count))")
+
+// Without a +localTimeZone zone, autoupdatingCurrent follows +setDefaultTimeZone:.
+if localZone == nil, let tokyo = NSTimeZone(name: "Asia/Tokyo"), let previousDefault = NSTimeZone.default() {
+    NSTimeZone.setDefault(tokyo)
+    check(TimeZone.autoupdatingCurrent.identifier == "Asia/Tokyo", "autoupdatingCurrent follows setDefault (\(TimeZone.autoupdatingCurrent.identifier))")
+    NSTimeZone.setDefault(previousDefault)
+}
 
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
