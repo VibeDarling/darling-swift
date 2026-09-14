@@ -6,4 +6,4 @@ Files found here come from official Swift releases from Swift.org. They are down
 
 The runtime libraries (`libswiftCore`, `libswift_Concurrency`, `libswift_StringProcessing`, `libswiftObservation`, ...) come from the release in `version.txt` and are universal (arm64 and x86_64) binaries.
 
-Swift.org toolchains no longer include the Darwin SDK overlays (`libswiftAppKit`, `libswiftFoundation`, `libswiftObjectiveC`, `libswiftDispatch`, ...). The copies of those still in this repository come from Swift 5.2.2 and are x86_64-only.
+Swift.org toolchains no longer include the Darwin SDK overlays (`libswiftAppKit`, `libswiftFoundation`, `libswiftObjectiveC`, `libswiftDispatch`, ...). The copies of those in this repository come from Swift 5.2.2 and are x86_64-only, except `libswiftDarwin`, `libswiftObjectiveC`, `libswiftCoreFoundation` and `libswiftDispatch`. Those four also have arm64 slices, built from the open-source Swift sources in `overlays/` (see `overlays/README.md`).
