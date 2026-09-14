@@ -14,7 +14,7 @@ set_target_properties(swiftCoreCompat PROPERTIES
 	OUTPUT_NAME "swiftCoreCompat"
 )
 set_property(TARGET swiftCoreCompat APPEND_STRING PROPERTY
-	LINK_FLAGS " -Wl,-U,_swift_getTypeByMangledNameInContext -Wl,-U,_\$ss12_ArrayBufferV19_getElementSlowPathyyXlSiF"
+	LINK_FLAGS " -Wl,-U,_swift_getTypeByMangledNameInContext -Wl,-U,'_\$ss12_ArrayBufferV19_getElementSlowPathyyXlSiF'"
 )
 install(TARGETS swiftCoreCompat DESTINATION libexec/darling/usr/lib/swift)
 
@@ -28,7 +28,7 @@ set_target_properties(swiftUniformTypeIdentifiers PROPERTIES
 	OUTPUT_NAME "swiftUniformTypeIdentifiers"
 )
 set_property(TARGET swiftUniformTypeIdentifiers APPEND_STRING PROPERTY
-	LINK_FLAGS " -Wl,-U,_\$sBOWV -Wl,-U,_\$ss22__RawDictionaryStorageC5emptys07__EmptyB9SingletonCvgZ"
+	LINK_FLAGS " -Wl,-U,'_\$sBOWV' -Wl,-U,'_\$ss22__RawDictionaryStorageC5emptys07__EmptyB9SingletonCvgZ'"
 )
 install(TARGETS swiftUniformTypeIdentifiers DESTINATION libexec/darling/usr/lib/swift)
 

@@ -11,55 +11,55 @@ type_name:
 .p2align 3
 .globl _$s22UniformTypeIdentifiers10UTTagClassVMn
 _$s22UniformTypeIdentifiers10UTTagClassVMn:
-    .long 0x00000041   # Flags: Struct | IsUnique (not generic)
-    .long 0            # Parent
-    .long (tag_name - .) # Name (relative pointer)
-    .long (_$s22UniformTypeIdentifiers10UTTagClassVMa - .) # Access function
-    .long 0            # FieldDescriptor
-    .long 0            # NumFields
-    .long 0            # FieldOffsetVectorOffset
+    .long 0x00000041   // Flags: Struct | IsUnique (not generic)
+    .long 0   // Parent
+    .long (tag_name - .)   // Name (relative pointer)
+    .long (_$s22UniformTypeIdentifiers10UTTagClassVMa - .)   // Access function
+    .long 0   // FieldDescriptor
+    .long 0   // NumFields
+    .long 0   // FieldOffsetVectorOffset
 
 .p2align 3
 .globl _$s22UniformTypeIdentifiers6UTTypeVMn
 _$s22UniformTypeIdentifiers6UTTypeVMn:
-    .long 0x00000041   # Flags: Struct | IsUnique (not generic)
-    .long 0            # Parent
-    .long (type_name - .) # Name (relative pointer)
-    .long (_$s22UniformTypeIdentifiers6UTTypeVMa - .) # Access function
-    .long 0            # FieldDescriptor
-    .long 0            # NumFields
-    .long 0            # FieldOffsetVectorOffset
+    .long 0x00000041   // Flags: Struct | IsUnique (not generic)
+    .long 0   // Parent
+    .long (type_name - .)   // Name (relative pointer)
+    .long (_$s22UniformTypeIdentifiers6UTTypeVMa - .)   // Access function
+    .long 0   // FieldDescriptor
+    .long 0   // NumFields
+    .long 0   // FieldOffsetVectorOffset
 
 .p2align 3
 .globl _$s22UniformTypeIdentifiers10UTTagClassVSHAAMc
 _$s22UniformTypeIdentifiers10UTTagClassVSHAAMc:
-    .long 0x80000000   # protocol: null relative pointer
-    .long 0x80000000   # typeRef: null relative pointer
-    .long 0x80000000   # witnessTable: null relative pointer
-    .long 0            # flags
+    .long 0x80000000   // protocol: null relative pointer
+    .long 0x80000000   // typeRef: null relative pointer
+    .long 0x80000000   // witnessTable: null relative pointer
+    .long 0   // flags
 
 .p2align 3
 .globl _$s22UniformTypeIdentifiers10UTTagClassVSQAAMc
 _$s22UniformTypeIdentifiers10UTTagClassVSQAAMc:
-    .long 0x80000000   # protocol: null relative pointer
-    .long 0x80000000   # typeRef: null relative pointer
-    .long 0x80000000   # witnessTable: null relative pointer
-    .long 0            # flags
+    .long 0x80000000   // protocol: null relative pointer
+    .long 0x80000000   // typeRef: null relative pointer
+    .long 0x80000000   // witnessTable: null relative pointer
+    .long 0   // flags
 
 .p2align 3
 .globl _$s22UniformTypeIdentifiers10UTTagClassVs23CustomStringConvertibleAAMc
 _$s22UniformTypeIdentifiers10UTTagClassVs23CustomStringConvertibleAAMc:
-    .long 0x80000000   # protocol: null relative pointer
-    .long 0x80000000   # typeRef: null relative pointer
-    .long 0x80000000   # witnessTable: null relative pointer
-    .long 0            # flags
+    .long 0x80000000   // protocol: null relative pointer
+    .long 0x80000000   // typeRef: null relative pointer
+    .long 0x80000000   // witnessTable: null relative pointer
+    .long 0   // flags
 
 .p2align 3
 .globl _$s22UniformTypeIdentifiers10UTTagClassVN
 _$s22UniformTypeIdentifiers10UTTagClassVN:
     .quad _$sBOWV
 uttagclass_metadata:
-    .quad 0x200        # Struct kind
+    .quad 0x200   // Struct kind
     .quad _$s22UniformTypeIdentifiers10UTTagClassVMn
 
 .p2align 3
@@ -67,10 +67,11 @@ uttagclass_metadata:
 _$s22UniformTypeIdentifiers6UTTypeVN:
     .quad _$sBOWV
 uttype_metadata:
-    .quad 0x200        # Struct kind
+    .quad 0x200   // Struct kind
     .quad _$s22UniformTypeIdentifiers6UTTypeVMn
 
 .text
+.p2align 2
 .globl _$s22UniformTypeIdentifiers10UTTagClassV17filenameExtensionACvgZ
 _$s22UniformTypeIdentifiers10UTTagClassV17filenameExtensionACvgZ:
 #if defined(__x86_64__)
@@ -87,8 +88,8 @@ _$s22UniformTypeIdentifiers10UTTagClassVMa:
     lea uttagclass_metadata(%rip), %rax
     ret
 #elif defined(__aarch64__)
-    adrp x0, uttagclass_metadata
-    add x0, x0, :lo12:uttagclass_metadata
+    adrp x0, uttagclass_metadata@PAGE
+    add x0, x0, uttagclass_metadata@PAGEOFF
     ret
 #endif
 
@@ -158,8 +159,8 @@ _$s22UniformTypeIdentifiers6UTTypeVMa:
     lea uttype_metadata(%rip), %rax
     ret
 #elif defined(__aarch64__)
-    adrp x0, uttype_metadata
-    add x0, x0, :lo12:uttype_metadata
+    adrp x0, uttype_metadata@PAGE
+    add x0, x0, uttype_metadata@PAGEOFF
     ret
 #endif
 
