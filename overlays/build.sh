@@ -77,9 +77,10 @@ build_module Dispatch "$here"/Dispatch/*.swift --link "$out/obj/Dispatch.mm.o" "
 build_module os "$here/os/os.swift" -- -Xcc -fmodule-map-file="$here/os/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 
-# Intentionally partial: String bridging only (see README).
+# Intentionally partial: String, Array, Dictionary and Set bridging only (see README).
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
-build_module Foundation "$here/Foundation/String.swift" --link "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+build_module Foundation "$here"/Foundation/*.swift --link "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+
 
 for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation; do
 	dylib="libswift$module.dylib"
