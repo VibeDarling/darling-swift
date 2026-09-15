@@ -24,3 +24,10 @@ extension NSSound {
         NSBeep()
     }
 }
+
+extension NSImage {
+    /// The image named `name`, as an image literal gives it; the image must exist.
+    public convenience init(imageLiteralResourceName name: String) {
+        self.init(named: name)!
+    }
+}
