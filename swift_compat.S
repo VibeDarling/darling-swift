@@ -20,6 +20,7 @@ __swift_FORCE_LOAD_$_swiftCoreMedia:
     .quad 0
 
 .text
+.p2align 2
 .globl _swift_getTypeByMangledNameInContext2
 _swift_getTypeByMangledNameInContext2:
 #if defined(__x86_64__)

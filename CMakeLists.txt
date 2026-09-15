@@ -14,7 +14,7 @@ set_target_properties(swiftCoreCompat PROPERTIES
 	OUTPUT_NAME "swiftCoreCompat"
 )
 set_property(TARGET swiftCoreCompat APPEND_STRING PROPERTY
-	LINK_FLAGS " -Wl,-U,_swift_getTypeByMangledNameInContext -Wl,-U,_\$ss12_ArrayBufferV19_getElementSlowPathyyXlSiF"
+	LINK_FLAGS " -Wl,-U,_swift_getTypeByMangledNameInContext -Wl,-U,'_\$ss12_ArrayBufferV19_getElementSlowPathyyXlSiF'"
 )
 install(TARGETS swiftCoreCompat DESTINATION libexec/darling/usr/lib/swift)
 
@@ -22,13 +22,13 @@ set(DYLIB_INSTALL_NAME "/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib")
 add_darling_library(swiftUniformTypeIdentifiers SHARED
 	libswiftUniformTypeIdentifiers.S
 )
-target_link_libraries(swiftUniformTypeIdentifiers system)
+target_link_libraries(swiftUniformTypeIdentifiers system objc UniformTypeIdentifiers)
 set_target_properties(swiftUniformTypeIdentifiers PROPERTIES
 	LINKER_LANGUAGE C
 	OUTPUT_NAME "swiftUniformTypeIdentifiers"
 )
 set_property(TARGET swiftUniformTypeIdentifiers APPEND_STRING PROPERTY
-	LINK_FLAGS " -Wl,-U,_\$sBOWV -Wl,-U,_\$ss22__RawDictionaryStorageC5emptys07__EmptyB9SingletonCvgZ"
+	LINK_FLAGS " -Wl,-U,'_\$sBOWV' -Wl,-U,__swiftEmptyDictionarySingleton -Wl,-U,_swift_bridgeObjectRelease"
 )
 install(TARGETS swiftUniformTypeIdentifiers DESTINATION libexec/darling/usr/lib/swift)
 
