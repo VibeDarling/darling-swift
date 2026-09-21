@@ -77,4 +77,10 @@ if (TARGET_ARM64)
 		DESTINATION "${CRYPTOKIT_FRAMEWORK_DIR}/Versions/A")
 	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/Versions/Current")
 	InstallSymlink(Versions/Current/CryptoKit "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/CryptoKit")
+
+	set(GROUPACTIVITIES_FRAMEWORK_DIR "libexec/darling/System/Library/Frameworks/GroupActivities.framework")
+	install(PROGRAMS GroupActivities.framework/Versions/A/GroupActivities
+		DESTINATION "${GROUPACTIVITIES_FRAMEWORK_DIR}/Versions/A")
+	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${GROUPACTIVITIES_FRAMEWORK_DIR}/Versions/Current")
+	InstallSymlink(Versions/Current/GroupActivities "${CMAKE_INSTALL_PREFIX}/${GROUPACTIVITIES_FRAMEWORK_DIR}/GroupActivities")
 endif()
