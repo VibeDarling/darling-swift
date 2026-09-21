@@ -9,7 +9,7 @@ different treatment, and the choice is a measurement, not a preference.
 **Measure before restructuring.** Diff every candidate file against the upstream revision it came
 from and count. Do not assume a directory is pristine because nobody has edited it recently, and do
 not assume it is adapted because a changelog mentions the module. Both assumptions have been wrong
-here: swift-foundation measured 35 pristine of 38, OpenCombine 92 of 103.
+here: swift-foundation measured 35 pristine of 39, OpenCombine 92 of 103.
 
 **Pristine files are fetched, not vendored.** `overlays/build.sh` clones the package and checks out
 a pinned commit:
@@ -42,10 +42,29 @@ differ from upstream.**
 form is smaller, patch lines or file lines.** The count of divergent files never enters it, which
 is what stops this being a taste:
 
-| Form | Use when | Measured example |
-|---|---|---|
-| Patch series applied after checkout | The divergence is surgical, so the patch is smaller than the file and shows the change line by line | OpenCombine: 798 patch lines against 2,547 lines of divergent file, one patch per reason |
-| Override file compiled instead of the fetched one | The divergence is a reduction, so the patch would be mostly deletion and the result reads better than the diff | swift-foundation: the patch would be 1,528 lines against 311 lines of file |
+| Form | Use when |
+|---|---|
+| Patch series applied after checkout | The divergence is surgical, so the patch is smaller than the file and shows the change line by line |
+| Override file compiled instead of the fetched one | The divergence is a reduction, so the patch would be mostly deletion and the result reads better than the diff |
+
+**Decide per file, not per package.** An average over several files hides the fact that they
+disagree. The four swift-foundation files kept in the tree split two ways, and the aggregate
+("1,528 patch lines against 311 lines of file") reads as a clean win for override files while
+concealing that half of them say the opposite:
+
+| File | Patch lines | File lines | Rule says |
+|---|---|---|---|
+| `CodableUtilities.swift` | 696 | 19 | override |
+| `String+Comparison.swift` | 775 | 21 | override |
+| `AttributedStringProtocol.swift` | 57 | 271 | patch |
+| `Locale+Components.swift` | 23 | 2,086 | patch |
+
+All four are kept as override files, so that the Foundation overlay has one mechanism rather than
+two. That is a legitimate choice and it is **a departure from the rule, not an application of it**;
+`DARLING-CHANGES.md` records it as such. `Locale+Components.swift` is the strongest patch case in
+the repository, 23 lines against 2,086, and it is an override. OpenCombine's eleven divergent files
+all point the same way, 798 patch lines against 2,547 lines of file, so it takes patches with no
+departure to record.
 
 Either way, **patch a copy, never the checkout**: recreate the copy from scratch each build, so an
 `FOO_SRC` override stays untouched and the patches apply exactly once. Prove the conversion with
