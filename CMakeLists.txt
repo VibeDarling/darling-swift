@@ -36,3 +36,15 @@ file(GLOB DYLIBS "*.dylib")
 if(DYLIBS)
 	install(FILES ${DYLIBS} DESTINATION libexec/darling/usr/lib/swift)
 endif()
+
+# Combine is a Swift framework, not a /usr/lib/swift overlay dylib, so it installs into the
+# framework layout rather than through the glob above. Built by overlays/build.sh. The binary is
+# arm64 only, unlike the fat dylibs above, so it is skipped on roots without an arm64 slice.
+if (TARGET_ARM64)
+	include(InstallSymlink)
+	set(COMBINE_FRAMEWORK_DIR "libexec/darling/System/Library/Frameworks/Combine.framework")
+	install(PROGRAMS Combine.framework/Versions/A/Combine
+		DESTINATION "${COMBINE_FRAMEWORK_DIR}/Versions/A")
+	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${COMBINE_FRAMEWORK_DIR}/Versions/Current")
+	InstallSymlink(Versions/Current/Combine "${CMAKE_INSTALL_PREFIX}/${COMBINE_FRAMEWORK_DIR}/Combine")
+endif()
