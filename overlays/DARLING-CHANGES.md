@@ -36,6 +36,31 @@ upstream.
   `Locale.Subdivision`, `Locale.Variant`, `ICULegacyKey` and the ISO language, region and script
   tables, is compiled unmodified.
 
+- **`Foundation/Locale+Darling.swift` is a Darling reimplementation, not upstream code.** It
+  supplies the four accessors that reach the vendored types from a `Locale`: `Locale.language`,
+  `Locale.region`, `Locale.currency` and `Locale.Language.languageCode`. Upstream implements these
+  in `FoundationInternationalization/Locale/Locale+Components_ICU.swift` and the `_Locale` protocol,
+  reading components straight out of ICU through `uloc_getLanguage`, `uloc_getCountry` and friends.
+  This overlay's `Locale` is the Swift 5.4 SDK overlay's wrapper around `NSLocale`, which has no
+  such internals, so the components are read from `NSLocale` instead: `languageCode`, `scriptCode`,
+  `regionCode` and `currencyCode`, which Darling's CoreFoundation backs with its own ICU-backed
+  `CFLocale`. That is the same data upstream reads, reached through Darling's own locale machinery.
+
+  Two behavioural differences follow, and neither invents a value:
+
+  - `Locale.region` reads `NSLocaleCountryCode`, so an `rg` override in the identifier is honoured
+    only as far as Darling's `CFLocale` honours it. Upstream distinguishes `Locale.region` from
+    `Locale.language.region` on exactly that key.
+  - `Locale.Language.languageCode` returns the stored `components.languageCode` with no fallback.
+    Upstream falls back to `uloc_getLanguage(components.identifier)` when the stored code is nil.
+    Every `Locale.Language` initializer this overlay ships stores the code directly, so there is no
+    identifier left to parse and the stored value is the complete answer; nil means the language
+    genuinely has no code.
+
+- **`Locale.Language.script` and `Locale.Language.region` are not provided.** They are the other two
+  members of the same upstream ICU file. Nothing in the app corpus binds them, and adding them would
+  be more Darling reimplementation for no measured demand.
+
 ## Fixes worth sending upstream
 
 None. Nothing in these two files needed correcting; the only changes are the exclusion above, which
