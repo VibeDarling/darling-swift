@@ -47,6 +47,42 @@ their `Equatable` conformances, and the `CGRect` extensions (`zero`, the three i
 `insetBy(dx:dy:)`, `union(_:)`, `intersection(_:)`, `intersects(_:)`, `offsetBy(dx:dy:)`,
 `divided(atDistance:from:)`) with its `Equatable` conformance.
 
+`CoreGraphics/CGGeometry.swift` also carries the `CGSize: Codable` block from the same upstream
+file, byte-identical.
+
+`CoreGraphics/CGAffineTransform.swift` carries three blocks from
+[swiftlang/swift](https://github.com/swiftlang/swift) (`release/5.4`,
+`stdlib/public/Darwin/CoreGraphics/CoreGraphics.swift`): the `Equatable` conformance,
+`CGAffineTransform.identity` and the `Codable` conformance. `CoreGraphics.swift`'s `CGColor.components`
+body comes from the same upstream file. Apache License v2.0 with the Runtime
+Library Exception; the upstream file header is preserved. Upstream's `==` calls `__equalTo`, which
+is the name the macOS SDK's `CoreGraphics.apinotes` gives `CGAffineTransformEqualToTransform`;
+Darling ships no apinotes, so the C function is called under its own name. That one-word change is
+the only departure.
+
+The rest of `CGAffineTransform.swift`, and everything appended to `CoreGraphics.swift`, has no Swift
+source upstream: on macOS those members reach Swift as Clang-importer renames driven by
+`CoreGraphics.apinotes` (`CGAffineTransformInvert` becomes `CGAffineTransform.inverted()`,
+`CGImageGetColorSpace` becomes `getter:CGImage.colorSpace(self:)`, `kCGColorSpaceSRGB` becomes
+`CGColorSpace.sRGB`). They are written here over the C functions and constants that Darling's own
+headers declare, the same way `CGImage.width` and `CGRect.applying(_:)` already were.
+
+## CoreGraphics members that cannot live in this overlay
+
+Four renames Apple's apinotes supply are **initializers on CF types**, and Swift rejects those in an
+extension ("designated initializer cannot be declared in an extension", "convenience initializers
+are not supported in extensions of CF types"). They need a `CoreGraphics.apinotes` in Darling's SDK,
+or `CF_SWIFT_NAME` on the C declarations, not overlay code:
+
+- `CGColorSpace.init?(name:)` (`CGColorSpaceCreateWithName`)
+- `CGColor.init?(colorSpace:components:)` (`CGColorCreate`)
+- `CGPath.init(rect:transform:)` (`CGPathCreateWithRect`)
+- `CGMutablePath.init()` (`CGPathCreateMutable`)
+
+Three more are absent from Darling's C CoreGraphics altogether, so there is nothing for an overlay
+member to call: `CGColorCreateCopyByMatchingToColorSpace` (which backs
+`CGColor.converted(to:intent:options:)`), `CGColorSpaceIsHLGBased` and `CGColorSpaceUsesITUR_2100TF`.
+
 ## Darling-specific adaptations
 
 These exist because of something Darling's SDK does or does not provide. They should not be sent
