@@ -88,6 +88,77 @@ build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" -- -Xcc -fmodu
 appkit="$DARLING_ROOT/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
 build_module AppKit "$here/AppKit/AppKit.swift" -- -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 
+# CryptoKit: Apple's is closed source and pure Swift. swift-crypto deliberately mirrors its public
+# API, so building it as module `CryptoKit` makes the mangled names match what apps import. Darling
+# cannot link BoringSSL into this framework, so the fork below supplies a pure-Swift SHA-256 and
+# neutralises the `canImport(CryptoKit)` guards that would otherwise collapse the package into an
+# empty module re-exporting itself. See overlays/README.md and the fork's DARLING-CHANGES.md.
+#
+# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible.
+CRYPTOKIT_FORK_URL=${CRYPTOKIT_FORK_URL:-https://github.com/cristim/swift-crypto.git}
+CRYPTOKIT_FORK_COMMIT=${CRYPTOKIT_FORK_COMMIT:-c4105ade5fbe6866375ec65146cac733d53a1146}
+crypto_src="$out/swift-crypto"
+if [ ! -d "$crypto_src/.git" ]; then
+	git clone --quiet --filter=blob:none "$CRYPTOKIT_FORK_URL" "$crypto_src"
+fi
+git -C "$crypto_src" fetch --quiet origin "$CRYPTOKIT_FORK_COMMIT" \
+	|| git -C "$crypto_src" fetch --quiet origin
+git -C "$crypto_src" checkout --quiet --detach "$CRYPTOKIT_FORK_COMMIT"
+
+# SHA-256 and HMAC-SHA-256 only: that is what the corpus binds. See overlays/README.md.
+cryptokit_sources="
+	Sources/Crypto/Digests/Digest.swift
+	Sources/Crypto/Digests/Digests.swift
+	Sources/Crypto/Digests/HashFunctions.swift
+	Sources/Crypto/Digests/HashFunctions_SHA2.swift
+	Sources/Crypto/Digests/Darling/Digest_darling.swift
+	Sources/Crypto/Keys/Symmetric/SymmetricKeys.swift
+	Sources/Crypto/Insecure/Insecure.swift
+	Sources/Crypto/Util/ArraySpanHelpers.swift
+	Sources/Crypto/Util/Data+ArraySpan.swift
+	Sources/Crypto/Util/PrettyBytes.swift
+	Sources/Crypto/Util/SafeCompare.swift
+	Sources/Crypto/Util/SecureBytes.swift
+	Sources/Crypto/Util/Zeroization.swift
+	Sources/Crypto/Util/BoringSSL/SafeCompare_boring.swift
+	Sources/Crypto/Util/BoringSSL/RNG_boring.swift
+	Sources/Crypto/Util/BoringSSL/InlineArray+withBytes_boring.swift
+	Sources/Crypto/Util/BoringSSL/Optional+withUnsafeBytes_boring.swift
+"
+cryptokit_files=""
+for f in $cryptokit_sources; do
+	cryptokit_files="$cryptokit_files $crypto_src/$f"
+done
+# These three live in a directory whose name contains spaces, so they are passed separately.
+mac_dir="$crypto_src/Sources/Crypto/Message Authentication Codes"
+
+mkdir -p "$out/modules-cryptokit"
+# shellcheck disable=SC2086
+"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c $cryptokit_files \
+	"$mac_dir/HMAC/HMAC.swift" "$mac_dir/MessageAuthenticationCode.swift" "$mac_dir/MACFunctions.swift" \
+	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+	-module-cache-path "$out/module-cache" -swift-version 5 \
+	-module-name CryptoKit \
+	-D DARLING_CRYPTOKIT_MODULE -enable-experimental-feature Lifetimes \
+	-enable-library-evolution -parse-as-library -O \
+	-I "$out/modules" \
+	-Xcc -fmodule-map-file="$here/shims/overlay-shims.modulemap" \
+	-emit-module-path "$out/modules-cryptokit/CryptoKit.swiftmodule" \
+	-o "$out/obj/CryptoKit.o"
+
+mkdir -p "$repo/CryptoKit.framework/Versions/A"
+# shellcheck disable=SC2086
+"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" \
+	-install_name "/System/Library/Frameworks/CryptoKit.framework/Versions/A/CryptoKit" \
+	-compatibility_version 1.0.0 -current_version 1.0.0 \
+	$LD_EXTRA_FLAGS \
+	-L "$SWIFT_RESOURCE_DIR/macosx" -L "$out" \
+	"$out/obj/CryptoKit.o" \
+	"$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
+	-lswiftCore -lswiftFoundation -lswiftCoreFoundation -lswiftDarwin -lswiftObjectiveC \
+	-o "$repo/CryptoKit.framework/Versions/A/CryptoKit"
+echo "updated CryptoKit.framework: $(llvm-lipo -archs "$repo/CryptoKit.framework/Versions/A/CryptoKit")"
+
 for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation CoreGraphics AppKit; do
 	dylib="libswift$module.dylib"
 	llvm-lipo -thin x86_64 "$repo/$dylib" -output "$out/$dylib.x86_64" 2>/dev/null || cp "$repo/$dylib" "$out/$dylib.x86_64"
