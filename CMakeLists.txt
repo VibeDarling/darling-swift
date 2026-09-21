@@ -71,4 +71,10 @@ if (TARGET_ARM64)
 		DESTINATION "${COMBINE_FRAMEWORK_DIR}/Versions/A")
 	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${COMBINE_FRAMEWORK_DIR}/Versions/Current")
 	InstallSymlink(Versions/Current/Combine "${CMAKE_INSTALL_PREFIX}/${COMBINE_FRAMEWORK_DIR}/Combine")
+
+	set(CRYPTOKIT_FRAMEWORK_DIR "libexec/darling/System/Library/Frameworks/CryptoKit.framework")
+	install(PROGRAMS CryptoKit.framework/Versions/A/CryptoKit
+		DESTINATION "${CRYPTOKIT_FRAMEWORK_DIR}/Versions/A")
+	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/Versions/Current")
+	InstallSymlink(Versions/Current/CryptoKit "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/CryptoKit")
 endif()
