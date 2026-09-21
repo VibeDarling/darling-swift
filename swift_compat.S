@@ -19,6 +19,10 @@ __swift_FORCE_LOAD_$_swiftCoreMIDI:
 __swift_FORCE_LOAD_$_swiftCoreMedia:
     .quad 0
 
+.globl __swift_classIsSwiftMask
+__swift_classIsSwiftMask:
+    .quad 2
+
 .text
 .p2align 2
 .globl _swift_getTypeByMangledNameInContext2

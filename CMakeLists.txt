@@ -32,6 +32,17 @@ set_property(TARGET swiftUniformTypeIdentifiers APPEND_STRING PROPERTY
 )
 install(TARGETS swiftUniformTypeIdentifiers DESTINATION libexec/darling/usr/lib/swift)
 
+set(DYLIB_INSTALL_NAME "/usr/lib/swift/libswiftWebKit.dylib")
+add_darling_library(swiftWebKit SHARED
+	libswiftWebKit.S
+)
+target_link_libraries(swiftWebKit system)
+set_target_properties(swiftWebKit PROPERTIES
+	LINKER_LANGUAGE C
+	OUTPUT_NAME "swiftWebKit"
+)
+install(TARGETS swiftWebKit DESTINATION libexec/darling/usr/lib/swift)
+
 file(GLOB DYLIBS "*.dylib")
 if(DYLIBS)
 	install(FILES ${DYLIBS} DESTINATION libexec/darling/usr/lib/swift)
