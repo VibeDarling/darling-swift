@@ -91,6 +91,10 @@ build_module AppKit "$here/AppKit/AppKit.swift" -- -Xcc -fmodule-map-file="$here
 # Minimal clean-room QuartzCore overlay (see README).
 build_module QuartzCore "$here/QuartzCore/QuartzCore.swift" -- -Xcc -fmodule-map-file="$here/QuartzCore/shims/module.modulemap"
 
+# Intentionally partial: the vector and matrix conversions and SCNBoundingVolume only (see README).
+scenekit="$DARLING_ROOT/System/Library/Frameworks/SceneKit.framework/Versions/A/SceneKit"
+build_module SceneKit "$here/SceneKit/SceneKit.swift" -- -Xcc -fmodule-map-file="$here/SceneKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$scenekit" "$foundation" "$corefoundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
+
 # Combine: OpenCombine built as module `Combine`, so its mangled names match what apps import.
 # Unlike the overlays above this is a framework binary, not a /usr/lib/swift dylib, and it has no
 # x86_64 slice to merge with. See overlays/README.md.
@@ -128,7 +132,7 @@ mkdir -p "$repo/Combine.framework/Versions/A"
 	-o "$repo/Combine.framework/Versions/A/Combine"
 echo "updated Combine.framework: $(llvm-lipo -archs "$repo/Combine.framework/Versions/A/Combine")"
 
-for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation CoreGraphics AppKit QuartzCore; do
+for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation CoreGraphics AppKit QuartzCore SceneKit; do
 	dylib="libswift$module.dylib"
 	llvm-lipo -thin x86_64 "$repo/$dylib" -output "$out/$dylib.x86_64" 2>/dev/null || cp "$repo/$dylib" "$out/$dylib.x86_64"
 	llvm-lipo -create "$out/$dylib.x86_64" "$out/$dylib" -output "$repo/$dylib"
