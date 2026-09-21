@@ -61,18 +61,16 @@ disagree. The four swift-foundation files kept in the tree split two ways, and t
 ("1,528 patch lines against 311 lines of file") reads as a clean win for override files while
 concealing that half of them say the opposite:
 
-| File | Patch lines | File lines | Rule says |
+| File | Lines carried, if patched | File lines | Rule says |
 |---|---|---|---|
-| `CodableUtilities.swift` | 696 | 19 | override |
-| `String+Comparison.swift` | 775 | 21 | override |
-| `AttributedStringProtocol.swift` | 57 | 271 | patch |
-| `Locale+Components.swift` | 23 | 2,086 | patch |
+| `CodableUtilities.swift` | 706 | 19 | override |
+| `String+Comparison.swift` | 785 | 21 | override |
+| `AttributedStringProtocol.swift` | 67 | 271 | patch |
+| `Locale+Components.swift` | 33 | 2,086 | patch |
 
-These four are as reported in #38 and predate the lines-carried convention above, so they are
-hypothetical patch sizes measured slightly differently from the OpenCombine table below. Each would
-grow by a few lines of diff metadata if recomputed. None of them is close enough for that to change
-a verdict, but they are not yet computed identically, which is the thing the convention exists to
-prevent; recompute before relying on the margins.
+The patch column is hypothetical, since all four are overrides today: it is `diff -u` against
+upstream plus a ten-line header of the kind `Combine/patches/*` carry, so that it is counted the
+same way as the OpenCombine table below.
 
 All four are kept as override files, so that the Foundation overlay has one mechanism rather than
 two. That is a legitimate choice and it is **a departure from the rule, not an application of it**;
@@ -132,3 +130,11 @@ binary because `comm` ran outside `LC_ALL=C` while its inputs were sorted under 
 
 Delete the binary, the object files and the module cache before every rebuild, and check the
 compiler's exit status. A failed build beside a leftover artifact reads exactly like a pass.
+
+**A figure measured once and then quoted is a different kind of claim from one measured now, and
+prose does not distinguish them.** Every number this file has had to correct was right when it was
+first taken and went stale or got transcribed afterwards: a denominator that was right before more
+files landed, a total that was right as a divergence count and wrong as a carrying count. This is
+the same shape as a source diff looking correct while the built binary is wrong. Re-derive rather
+than re-read, and when reviewing someone else's number, recompute it from the sources instead of
+checking their arithmetic.
