@@ -62,9 +62,12 @@ concealing that half of them say the opposite:
 All four are kept as override files, so that the Foundation overlay has one mechanism rather than
 two. That is a legitimate choice and it is **a departure from the rule, not an application of it**;
 `DARLING-CHANGES.md` records it as such. `Locale+Components.swift` is the strongest patch case in
-the repository, 23 lines against 2,086, and it is an override. OpenCombine's eleven divergent files
-all point the same way, 798 patch lines against 2,547 lines of file, so it takes patches with no
-departure to record.
+the repository, 23 lines against 2,086, and it is an override.
+
+OpenCombine was checked the same way and its eleven divergent files do agree: all eleven favour a
+patch, from 11 lines against 337 up to 285 against 476, totalling 770 diff lines against 2,547
+lines of file. So it takes patches with no departure to record. Check per file even when you expect
+agreement; an aggregate that happens to be right still is not evidence.
 
 Either way, **patch a copy, never the checkout**: recreate the copy from scratch each build, so an
 `FOO_SRC` override stays untouched and the patches apply exactly once. Prove the conversion with
