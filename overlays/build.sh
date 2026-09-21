@@ -144,12 +144,22 @@ build_module Foundation "$here"/Foundation/*.swift -- -package-name swift-founda
 coregraphics="$DARLING_ROOT/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
 build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" -- -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$coregraphics" "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
 
+# The AppKit and QuartzCore overlays re-export their Clang module, but only where the SDK ships one:
+# swift-darling's own SDK carries neither framework, while an SDK built over Darling's in-tree headers
+# does. Without the re-export the Swift module shadows the Clang module and hides every Objective-C
+# type behind it; with it, against an SDK that has no such module, the import is a hard error.
+clang_module_flag() {
+	if [ -f "$DARLING_SDK/System/Library/Frameworks/$1.framework/Modules/module.modulemap" ]; then
+		printf -- '-D DARLING_%s_CLANG_MODULE' "$2"
+	fi
+}
+
 # Minimal clean-room AppKit overlay (see README).
 appkit="$DARLING_ROOT/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
-build_module AppKit "$here/AppKit/AppKit.swift" -- -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
+build_module AppKit "$here/AppKit/AppKit.swift" -- $(clang_module_flag AppKit APPKIT) -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 
 # Minimal clean-room QuartzCore overlay (see README).
-build_module QuartzCore "$here/QuartzCore/QuartzCore.swift" -- -Xcc -fmodule-map-file="$here/QuartzCore/shims/module.modulemap"
+build_module QuartzCore "$here/QuartzCore/QuartzCore.swift" -- $(clang_module_flag QuartzCore QUARTZCORE) -Xcc -fmodule-map-file="$here/QuartzCore/shims/module.modulemap"
 
 # Intentionally partial: the vector and matrix conversions and SCNBoundingVolume only (see README).
 scenekit="$DARLING_ROOT/System/Library/Frameworks/SceneKit.framework/Versions/A/SceneKit"

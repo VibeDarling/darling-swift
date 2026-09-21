@@ -4,6 +4,16 @@
 
 @_exported import Foundation
 import CoreGraphics
+// Re-export the AppKit Clang module where the SDK provides one. Without the re-export a Swift
+// module named AppKit shadows the Clang module of the same name and every Objective-C type behind
+// it becomes unreachable from Swift, even though Darling's headers declare them all.
+//
+// Gated on a build flag rather than on canImport(AppKit): inside the module being built as AppKit,
+// canImport(AppKit) is true whether or not the Clang module exists, so it cannot discriminate.
+// build.sh sets the flag when the SDK actually carries the module map.
+#if DARLING_APPKIT_CLANG_MODULE
+@_exported import AppKit
+#endif
 import _DarlingAppKitShims
 
 extension CGRect {
