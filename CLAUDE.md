@@ -47,6 +47,15 @@ is what stops this being a taste:
 | Patch series applied after checkout | The divergence is surgical, so the patch is smaller than the file and shows the change line by line |
 | Override file compiled instead of the fetched one | The divergence is a reduction, so the patch would be mostly deletion and the result reads better than the diff |
 
+**Count lines the repository carries, on both sides.** For a patch that is the whole patch file,
+diff metadata and any explanatory header included; for an override it is the whole file. This is
+the convention because it needs no judgement about which lines "really" are the divergence, and
+because a stricter count biases the comparison: strip diff metadata and prose from the patch side
+and patches win by exactly what you stripped, while an override file's line count includes its
+Apache header and comments regardless. Both of tonight's figures were wrong for this reason, in
+opposite directions. Write the convention down wherever the numbers appear; otherwise the next
+person recomputes the two sides differently and reaches a different answer.
+
 **Decide per file, not per package.** An average over several files hides the fact that they
 disagree. The four swift-foundation files kept in the tree split two ways, and the aggregate
 ("1,528 patch lines against 311 lines of file") reads as a clean win for override files while
@@ -65,9 +74,13 @@ two. That is a legitimate choice and it is **a departure from the rule, not an a
 the repository, 23 lines against 2,086, and it is an override.
 
 OpenCombine was checked the same way and its eleven divergent files do agree: all eleven favour a
-patch, from 11 lines against 337 up to 285 against 476, totalling 770 diff lines against 2,547
-lines of file. So it takes patches with no departure to record. Check per file even when you expect
-agreement; an aggregate that happens to be right still is not evidence.
+patch, from 11 lines against 337 up to 285 against 476, totalling 800 lines carried against 2,547
+lines of file. So it takes patches with no departure to record.
+
+Check per file even when you expect agreement; an aggregate that happens to be right is still not
+evidence. "Both transforms are uniform, so every file must agree" was reasoning, and it held only
+by 24 lines: `AnySubscriber.swift` carries 206 against a 230-line file, and slightly denser edits
+there would have flipped it.
 
 Either way, **patch a copy, never the checkout**: recreate the copy from scratch each build, so an
 `FOO_SRC` override stays untouched and the patches apply exactly once. Prove the conversion with
