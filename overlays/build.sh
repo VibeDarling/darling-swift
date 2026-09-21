@@ -88,6 +88,43 @@ build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" -- -Xcc -fmodu
 appkit="$DARLING_ROOT/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
 build_module AppKit "$here/AppKit/AppKit.swift" -- -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 
+# Combine: OpenCombine built as module `Combine`, so its mangled names match what apps import.
+# Unlike the overlays above this is a framework binary, not a /usr/lib/swift dylib, and it has no
+# x86_64 slice to merge with. See overlays/README.md.
+#
+# Its .swiftmodule deliberately goes somewhere the overlays above do NOT import from. They pass
+# -I "$out/modules", and two vendored sources here are guarded on `#if !canImport(Combine)`,
+# so a Combine module on that path would silently change what the other overlays compile on every
+# run after the first. An overlay that genuinely needs Combine (Dispatch's Scheduler conformance)
+# should add -I "$out/modules-combine" explicitly.
+mkdir -p "$out/modules-combine"
+"$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" \
+	-I "$here/Combine/include" -Wall -Wextra -O2 -fvisibility=hidden \
+	-c "$here/Combine/helpers.c" -o "$out/obj/CombineHelpers.o"
+
+# shellcheck disable=SC2086
+"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c $(find "$here/Combine/Sources" -name '*.swift' | sort) \
+	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+	-module-cache-path "$out/module-cache" -swift-version 5 \
+	-module-name Combine \
+	-enable-library-evolution -parse-as-library -O \
+	-Xcc -fmodule-map-file="$here/Combine/include/module.modulemap" \
+	-emit-module-path "$out/modules-combine/Combine.swiftmodule" \
+	-o "$out/obj/Combine.o"
+
+mkdir -p "$repo/Combine.framework/Versions/A"
+# shellcheck disable=SC2086
+"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" \
+	-install_name "/System/Library/Frameworks/Combine.framework/Versions/A/Combine" \
+	-compatibility_version 1.0.0 -current_version 1.0.0 \
+	$LD_EXTRA_FLAGS \
+	-L "$SWIFT_RESOURCE_DIR/macosx" \
+	"$out/obj/Combine.o" "$out/obj/CombineHelpers.o" \
+	"$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
+	-lswiftCore \
+	-o "$repo/Combine.framework/Versions/A/Combine"
+echo "updated Combine.framework: $(llvm-lipo -archs "$repo/Combine.framework/Versions/A/Combine")"
+
 for module in Darwin ObjectiveC CoreFoundation Dispatch os XPC Foundation CoreGraphics AppKit; do
 	dylib="libswift$module.dylib"
 	llvm-lipo -thin x86_64 "$repo/$dylib" -output "$out/$dylib.x86_64" 2>/dev/null || cp "$repo/$dylib" "$out/$dylib.x86_64"

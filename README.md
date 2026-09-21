@@ -16,3 +16,5 @@ Swift.org toolchains no longer include the Darwin SDK overlays (`libswiftAppKit`
 - **`swift_compat.S` and `libswiftUniformTypeIdentifiers.S`:** written for Darling, not taken from a Swift release. `CMakeLists.txt` builds them into `libswiftCoreCompat.dylib` and `libswiftUniformTypeIdentifiers.dylib`.
 
 Swift is Copyright Apple Inc. and the Swift project authors, and is licensed under the Apache License v2.0 with Runtime Library Exception. `LICENSE.txt` is the copy shipped in the pkg (`usr/share/swift/LICENSE.txt`). The parts of `overlays/` written for Darling are listed in `overlays/README.md`.
+
+`Combine.framework` is not from a Swift release. Apple's Combine is pure Swift and closed source, so the binary here is [OpenCombine](https://github.com/OpenCombine/OpenCombine) (MIT) built as module `Combine` from `overlays/Combine/`, which is what makes the mangled names of the API it implements match the ones apps import. Coverage is partial and it is arm64 only; see `overlays/README.md`.
