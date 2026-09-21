@@ -68,6 +68,12 @@ concealing that half of them say the opposite:
 | `AttributedStringProtocol.swift` | 57 | 271 | patch |
 | `Locale+Components.swift` | 23 | 2,086 | patch |
 
+These four are as reported in #38 and predate the lines-carried convention above, so they are
+hypothetical patch sizes measured slightly differently from the OpenCombine table below. Each would
+grow by a few lines of diff metadata if recomputed. None of them is close enough for that to change
+a verdict, but they are not yet computed identically, which is the thing the convention exists to
+prevent; recompute before relying on the margins.
+
 All four are kept as override files, so that the Foundation overlay has one mechanism rather than
 two. That is a legitimate choice and it is **a departure from the rule, not an application of it**;
 `DARLING-CHANGES.md` records it as such. `Locale+Components.swift` is the strongest patch case in
