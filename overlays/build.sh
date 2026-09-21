@@ -21,20 +21,35 @@ LD_EXTRA_FLAGS=${LD_EXTRA_FLAGS:-}
 out="$here/build"
 mkdir -p "$out/modules" "$out/obj"
 
+# Write one source path per line, quoted, for swiftc's response file. Backslashes and quotes
+# are escaped: LLVM's tokenizer would otherwise turn such a path into a different filename
+# silently rather than failing.
+write_source() {
+	printf '"%s"\n' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')" >> "$2"
+}
+
+# Collect every .swift under a directory into a response file, in a stable order.
+collect_sources() {
+	: > "$2"
+	find "$1" -name '*.swift' | LC_ALL=C sort | while IFS= read -r f; do write_source "$f" "$2"; done
+}
+
 # build_module <Module> <sources...> [-- <extra swiftc -frontend flags>] [--link <extra ld inputs>]
+# Source paths may contain spaces; flags and link inputs may not, since both are expanded as word
+# lists on the command line.
 build_module() {
 	module=$1
 	shift
-	sources=""
 	swift_flags=""
 	link_inputs=""
 	mode=src
+	: > "$out/$module.sources"
 	for arg in "$@"; do
 		case "$arg" in
 			--) mode=flags ;;
 			--link) mode=link ;;
 			*) case "$mode" in
-				src) sources="$sources $arg" ;;
+				src) write_source "$arg" "$out/$module.sources" ;;
 				flags) swift_flags="$swift_flags $arg" ;;
 				link) link_inputs="$link_inputs $arg" ;;
 			esac ;;
@@ -43,7 +58,7 @@ build_module() {
 
 	# Library evolution, like Apple's SDK overlays, so binaries built against the macOS SDK use the same access patterns.
 	# shellcheck disable=SC2086
-	"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c $sources \
+	"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/$module.sources" \
 		-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
 		-module-cache-path "$out/module-cache" -swift-version 5 \
 		-module-name "$module" -module-link-name "swift$module" -autolink-force-load \
@@ -77,9 +92,54 @@ build_module Dispatch "$here"/Dispatch/*.swift --link "$out/obj/Dispatch.mm.o" "
 build_module os "$here/os/os.swift" -- -Xcc -fmodule-map-file="$here/os/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 
-# Intentionally partial: String, Array, Dictionary and Set bridging only (see README).
+# AttributedString stores its text in swift-collections' BigString. Both modules are an
+# implementation detail of the Foundation overlay: they are compiled without library evolution
+# and their objects are linked straight into libswiftFoundation, the way Apple's Foundation
+# links CollectionsInternal, rather than shipped as dylibs of their own.
+build_object() {
+	module=$1
+	srcdir=$2
+	collect_sources "$srcdir" "$out/$module.sources"
+	"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/$module.sources" \
+		-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+		-module-cache-path "$out/module-cache" -swift-version 5 \
+		-module-name "$module" -parse-as-library -O \
+		-I "$out/modules" \
+		-emit-module-path "$out/modules/$module.swiftmodule" \
+		-o "$out/obj/$module.o"
+}
+# swift-collections is fetched rather than vendored: unlike overlays/Foundation/*, which is Apple
+# overlay source adapted for Darling, these files are consumed exactly as upstream ships them.
+#
+# Pinned BY COMMIT on purpose: a branch or tag reference would make this build non-reproducible.
+# c11818f3... is the commit tag 1.1.6 points at; check that with
+#   git ls-remote https://github.com/apple/swift-collections.git refs/tags/1.1.6
+# SWIFT_COLLECTIONS_SRC can point at an already-fetched checkout, the way SWIFT_PKG does for the
+# toolchain in the top-level build.sh, so an offline build needs no network. Nothing verifies that
+# checkout, so point it at the pinned commit.
+SWIFT_COLLECTIONS_URL=${SWIFT_COLLECTIONS_URL:-https://github.com/apple/swift-collections.git}
+SWIFT_COLLECTIONS_COMMIT=${SWIFT_COLLECTIONS_COMMIT:-c11818f3cae0780656baa430b49e7f163f08dffd}
+collections_src=${SWIFT_COLLECTIONS_SRC:-$out/swift-collections}
+if [ -z "${SWIFT_COLLECTIONS_SRC:-}" ]; then
+	if [ ! -d "$collections_src/.git" ]; then
+		git clone --quiet --filter=blob:none "$SWIFT_COLLECTIONS_URL" "$collections_src"
+	fi
+	git -C "$collections_src" fetch --quiet origin "$SWIFT_COLLECTIONS_COMMIT" \
+		|| git -C "$collections_src" fetch --quiet origin
+	git -C "$collections_src" checkout --quiet --detach "$SWIFT_COLLECTIONS_COMMIT"
+fi
+build_object InternalCollectionsUtilities "$collections_src/Sources/InternalCollectionsUtilities"
+build_object _RopeModule "$collections_src/Sources/RopeModule"
+
+# Keep the linked-in swift-collections symbols out of libswiftFoundation's export table, the way
+# Apple hides CollectionsInternal. The patterns go in a file rather than on the command line
+# because build_module re-splits its link inputs, where a bare '*' would be glob-expanded.
+printf '_$s11_RopeModule*\n_$s28InternalCollectionsUtilities*\n' > "$out/unexported.txt"
+
+# Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and
+# the FormatStyle protocols (see README).
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
-build_module Foundation "$here"/Foundation/*.swift --link "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+build_module Foundation "$here"/Foundation/*.swift -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
 
 coregraphics="$DARLING_ROOT/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
 build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" -- -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$coregraphics" "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
