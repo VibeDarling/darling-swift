@@ -34,7 +34,8 @@ collect_sources() {
 	find "$1" -name '*.swift' | LC_ALL=C sort | while IFS= read -r f; do write_source "$f" "$2"; done
 }
 
-# build_module <Module> <sources...> [-- <extra swiftc -frontend flags>] [--link <extra ld inputs>]
+# build_module <Module> <sources...> [--sources-from <file of paths>]
+#              [-- <extra swiftc -frontend flags>] [--link <extra ld inputs>]
 # Source paths may contain spaces; flags and link inputs may not, since both are expanded as word
 # lists on the command line.
 build_module() {
@@ -48,8 +49,13 @@ build_module() {
 		case "$arg" in
 			--) mode=flags ;;
 			--link) mode=link ;;
+			--sources-from) mode=srcfile ;;
 			*) case "$mode" in
 				src) write_source "$arg" "$out/$module.sources" ;;
+				srcfile) while IFS= read -r src_line; do
+						[ -n "$src_line" ] || continue
+						write_source "$src_line" "$out/$module.sources"
+					done < "$arg" ;;
 				flags) swift_flags="$swift_flags $arg" ;;
 				link) link_inputs="$link_inputs $arg" ;;
 			esac ;;
@@ -136,10 +142,74 @@ build_object _RopeModule "$collections_src/Sources/RopeModule"
 # because build_module re-splits its link inputs, where a bare '*' would be glob-expanded.
 printf '_$s11_RopeModule*\n_$s28InternalCollectionsUtilities*\n' > "$out/unexported.txt"
 
+# swift-foundation supplies AttributedString and the FormatStyle protocols. Fetched, not vendored,
+# for the same reason as swift-collections: 34 of the 37 files are taken exactly as upstream ships
+# them. The three that Darling has to change live in Foundation/ and are listed in
+# DARLING-CHANGES.md; they are simply not taken from the checkout here.
+#
+# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible.
+# dbacc67779... is tag swift-6.3.3-RELEASE; check that with
+#   git ls-remote https://github.com/swiftlang/swift-foundation.git refs/tags/swift-6.3.3-RELEASE
+# SWIFT_FOUNDATION_SRC can point at an already-fetched checkout for an offline build. Nothing
+# verifies that checkout, so point it at the pinned commit. It is never written to.
+SWIFT_FOUNDATION_URL=${SWIFT_FOUNDATION_URL:-https://github.com/swiftlang/swift-foundation.git}
+SWIFT_FOUNDATION_COMMIT=${SWIFT_FOUNDATION_COMMIT:-dbacc67779dc0a41ddc9493acbaa332d76c9fb03}
+foundation_src=${SWIFT_FOUNDATION_SRC:-$out/swift-foundation}
+if [ -z "${SWIFT_FOUNDATION_SRC:-}" ]; then
+	if [ ! -d "$foundation_src/.git" ]; then
+		git clone --quiet --filter=blob:none "$SWIFT_FOUNDATION_URL" "$foundation_src"
+	fi
+	git -C "$foundation_src" fetch --quiet origin "$SWIFT_FOUNDATION_COMMIT" \
+		|| git -C "$foundation_src" fetch --quiet origin
+	git -C "$foundation_src" checkout --quiet --detach "$SWIFT_FOUNDATION_COMMIT"
+fi
+
+: > "$out/foundation-upstream.list"
+while IFS= read -r rel; do
+	[ -n "$rel" ] || continue
+	printf '%s\n' "$foundation_src/Sources/FoundationEssentials/$rel" >> "$out/foundation-upstream.list"
+done <<'UPSTREAM_FILES'
+AttributedString/AttributeContainer.swift
+AttributedString/AttributeScope.swift
+AttributedString/AttributedString+AttributeTransformation.swift
+AttributedString/AttributedString+CharacterView.swift
+AttributedString/AttributedString+Guts.swift
+AttributedString/AttributedString+IndexTracking.swift
+AttributedString/AttributedString+IndexValidity.swift
+AttributedString/AttributedString+Runs+AttributeSlices.swift
+AttributedString/AttributedString+Runs+Run.swift
+AttributedString/AttributedString+Runs.swift
+AttributedString/AttributedString+UTF16View.swift
+AttributedString/AttributedString+UTF8View.swift
+AttributedString/AttributedString+UnicodeScalarView.swift
+AttributedString/AttributedString+_InternalRun.swift
+AttributedString/AttributedString+_InternalRuns.swift
+AttributedString/AttributedString+_InternalRunsSlice.swift
+AttributedString/AttributedString.swift
+AttributedString/AttributedStringAttribute.swift
+AttributedString/AttributedStringAttributeConstrainingBehavior.swift
+AttributedString/AttributedStringAttributeStorage.swift
+AttributedString/AttributedStringCodable.swift
+AttributedString/AttributedSubstring.swift
+AttributedString/Collection Stdlib Defaults.swift
+AttributedString/Conversion.swift
+AttributedString/DiscontiguousAttributedSubstring.swift
+AttributedString/FoundationAttributes.swift
+AttributedString/String.Index+ABI.swift
+CodableWithConfiguration.swift
+Formatting/DiscreteFormatStyle.swift
+Formatting/FormatStyle.swift
+Formatting/ParseStrategy.swift
+Formatting/ParseableFormatStyle.swift
+Locale/Locale+Language.swift
+LockedState.swift
+String/StringBlocks.swift
+UPSTREAM_FILES
+
 # Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and
 # the FormatStyle protocols (see README).
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
-build_module Foundation "$here"/Foundation/*.swift -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+build_module Foundation "$here"/Foundation/*.swift --sources-from "$out/foundation-upstream.list" -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
 
 coregraphics="$DARLING_ROOT/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
 build_module CoreGraphics "$here/CoreGraphics/CoreGraphics.swift" -- -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$coregraphics" "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
