@@ -30,6 +30,23 @@ wrappers over a string identifier plus static ISO code tables. Only the accessor
 from a `Locale` live in `FoundationInternationalization`, and those are reimplemented over Darling's
 `NSLocale` instead (below).
 
+`CoreGraphics/CGGeometry.swift` comes from
+[swift-corelibs-foundation](https://github.com/swiftlang/swift-corelibs-foundation) (`release/5.4`,
+`Sources/Foundation/NSGeometry.swift`). It is vendored rather than fetched because only five
+extension blocks of that one file are wanted, not the file or the package: the rest defines
+`CGPoint`, `CGSize` and `CGRect` as Swift structs, which Darling imports from C instead, and pulls
+in `NSSpecialValueCoding`, `NSEdgeInsets` and the `NS*` geometry functions. The five blocks taken
+are byte-identical to upstream; the only additions are the file header and the
+`import _DarlingCoreGraphicsShims` line that brings the C structs into scope.
+Apache License v2.0 with the Runtime Library Exception; the upstream file header is preserved.
+
+Taken: the `CGPoint` and `CGSize` extensions (`zero`, the `Int` and `Double` initializers) with
+their `Equatable` conformances, and the `CGRect` extensions (`zero`, the three initializers, `null`,
+`infinite`, `width`, `height`, `minX`, `midX`, `maxX`, `minY`, `midY`, `maxY`, `isEmpty`,
+`isInfinite`, `isNull`, `contains(_:)` for a point and for a rect, `standardized`, `integral`,
+`insetBy(dx:dy:)`, `union(_:)`, `intersection(_:)`, `intersects(_:)`, `offsetBy(dx:dy:)`,
+`divided(atDistance:from:)`) with its `Equatable` conformance.
+
 ## Darling-specific adaptations
 
 These exist because of something Darling's SDK does or does not provide. They should not be sent
@@ -67,6 +84,29 @@ upstream.
 - **`build.sh` passes `-package-name swift-foundation`.** Without it, `package`-level declarations
   such as `LockedState` silently degrade to `fileprivate` and the module does not compile. The value
   matches swift-foundation's own package identity so `package` symbols mangle as upstream does.
+
+- **`CGGeometry.swift` follows Apple's semantics where Darling's C CoreGraphics does not.** The
+  vendored code is unmodified, so where cocotron's `CGGeometry.m` disagrees with it, the Swift and
+  the C answer differ. Three measured cases, all of them cocotron departing from Apple rather than
+  the overlay departing from C:
+  - `CGRect.infinite` is Apple's `{-CGFloat.greatestFiniteMagnitude / 2, ..., .greatestFiniteMagnitude, ...}`.
+    Darling's C global `CGRectInfinite` is `{{0, 0}, {INFINITY, INFINITY}}`, and its own header
+    comment asks whether that matches Apple. It does not.
+  - `CGRect.intersection(_:)` returns `.null` for disjoint rectangles, as documented. C
+    `CGRectIntersection` returns `CGRectZero`.
+  - `CGRect.isInfinite` is true only for the infinite rectangle. C `CGRectIsInfinite` is true for any
+    rectangle with an infinite field.
+  `CGRectNull` agrees in both, which is the one that matters for the null sentinel. Fixing the three
+  belongs in cocotron's `CGGeometry.m`, not here.
+
+- **`applying(_:)` and `CGImage.width`/`.height` are written for Darling, in
+  `CoreGraphics/CoreGraphics.swift`.** No open-source Swift implementation of them exists: on macOS
+  they are Clang-importer renames of `CGRectApplyAffineTransform`, `CGPointApplyAffineTransform`,
+  `CGSizeApplyAffineTransform`, `CGImageGetWidth` and `CGImageGetHeight` driven by
+  `CoreGraphics.apinotes`, and swift-corelibs-foundation has no `CGAffineTransform` or `CGImage` to
+  extend. They call those same C functions, the way the `CGContext` methods beside them do. The two
+  `Apply` ones Darling declares as `static inline` behind a macro, so the overlay calls
+  `__CGPointApplyAffineTransform` and `__CGSizeApplyAffineTransform` by their real names.
 
 ## Not vendored, and why
 
