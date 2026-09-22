@@ -295,6 +295,39 @@ mkdir -p "$repo/Combine.framework/Versions/A"
 	-o "$repo/Combine.framework/Versions/A/Combine"
 echo "updated Combine.framework: $(llvm-lipo -archs "$repo/Combine.framework/Versions/A/Combine")"
 
+# GroupActivities: Apple's is closed source and pure Swift, with no open-source twin, so the source
+# here declares only the public API shape, which is what makes the mangled names match what apps
+# bind. Deliberately inert: SharePlay needs a coordination daemon Darling does not have. See
+# overlays/README.md.
+#
+# Links against Combine.framework above for the 9 Combine symbols the @Published properties pull in,
+# so Combine must be built first and stays a non-weak runtime dependency of the installed framework.
+collect_sources "$here/GroupActivities/Sources" "$out/GroupActivities.sources"
+mkdir -p "$out/modules-groupactivities"
+"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/GroupActivities.sources" \
+	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+	-module-cache-path "$out/module-cache" -swift-version 5 \
+	-module-name GroupActivities \
+	-enable-library-evolution -parse-as-library -O \
+	-I "$out/modules-combine" \
+	-Xcc -fmodule-map-file="$here/Combine/include/module.modulemap" \
+	-emit-module-path "$out/modules-groupactivities/GroupActivities.swiftmodule" \
+	-o "$out/obj/GroupActivities.o"
+
+mkdir -p "$repo/GroupActivities.framework/Versions/A"
+# shellcheck disable=SC2086
+"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" \
+	-install_name "/System/Library/Frameworks/GroupActivities.framework/Versions/A/GroupActivities" \
+	-compatibility_version 1.0.0 -current_version 1.0.0 \
+	$LD_EXTRA_FLAGS \
+	-L "$SWIFT_RESOURCE_DIR/macosx" \
+	"$out/obj/GroupActivities.o" \
+	"$repo/Combine.framework/Versions/A/Combine" \
+	"$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
+	-lswiftCore \
+	-o "$repo/GroupActivities.framework/Versions/A/GroupActivities"
+echo "updated GroupActivities.framework: $(llvm-lipo -archs "$repo/GroupActivities.framework/Versions/A/GroupActivities")"
+
 # CryptoKit: Apple's is closed source and pure Swift. swift-crypto deliberately mirrors its public
 # API, so building it as module `CryptoKit` makes the mangled names match what apps import. Darling
 # cannot link BoringSSL into this framework, so the fork below supplies a pure-Swift SHA-256 and
