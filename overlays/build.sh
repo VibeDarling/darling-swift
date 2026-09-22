@@ -230,22 +230,55 @@ build_module SceneKit "$here/SceneKit/SceneKit.swift" -- -Xcc -fmodule-map-file=
 # x86_64 slice to merge with. See overlays/README.md.
 #
 # Its .swiftmodule deliberately goes somewhere the overlays above do NOT import from. They pass
-# -I "$out/modules", and two vendored sources here are guarded on `#if !canImport(Combine)`,
-# so a Combine module on that path would silently change what the other overlays compile on every
-# run after the first. An overlay that genuinely needs Combine (Dispatch's Scheduler conformance)
-# should add -I "$out/modules-combine" explicitly.
+# -I "$out/modules", and two of its sources are guarded on `#if !canImport(Combine)`, so a Combine
+# module on that path would silently change what the other overlays compile on every run after the
+# first. An overlay that genuinely needs Combine (Dispatch's Scheduler conformance) should add
+# -I "$out/modules-combine" explicitly.
+#
+# OpenCombine is fetched rather than vendored, for the same reason swift-collections is above: 92
+# of its 103 sources are consumed exactly as upstream ships them. The 11 that are not, and why,
+# are in Combine/patches/, applied below.
+#
+# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible. No
+# release tag contains 1c6f02c (the newest, 0.14.0, is older), so there is no tag to record
+# beside it the way swift-collections has one; it is master's head of 2023-10-20. Check it with
+#   git ls-remote https://github.com/OpenCombine/OpenCombine.git refs/heads/master
+# OPENCOMBINE_SRC can point at an already-fetched checkout, the way SWIFT_COLLECTIONS_SRC does
+# above, so an offline build needs no network. Nothing verifies that checkout, so point it at the
+# pinned commit.
+OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/OpenCombine/OpenCombine.git}
+OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-1c6f02c7ed8140c0ba7a783aaddb6e0685a0037b}
+opencombine_src=${OPENCOMBINE_SRC:-$out/OpenCombine}
+if [ -z "${OPENCOMBINE_SRC:-}" ]; then
+	if [ ! -d "$opencombine_src/.git" ]; then
+		git clone --quiet --filter=blob:none "$OPENCOMBINE_URL" "$opencombine_src"
+	fi
+	git -C "$opencombine_src" fetch --quiet origin "$OPENCOMBINE_COMMIT" \
+		|| git -C "$opencombine_src" fetch --quiet origin
+	git -C "$opencombine_src" checkout --quiet --detach "$OPENCOMBINE_COMMIT"
+fi
+
+# Patch a copy, never the checkout: OPENCOMBINE_SRC may point at one this build does not own, and
+# rebuilding from scratch each time is what makes the patches apply exactly once.
+rm -rf "$out/combine-src"
+cp -R "$opencombine_src/Sources/OpenCombine" "$out/combine-src"
+for p in "$here"/Combine/patches/*.patch; do
+	patch -p1 -s -d "$out/combine-src" < "$p"
+done
+
 mkdir -p "$out/modules-combine"
 "$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" \
-	-I "$here/Combine/include" -Wall -Wextra -O2 -fvisibility=hidden \
+	-I "$opencombine_src/Sources/COpenCombineHelpers/include" -Wall -Wextra -O2 -fvisibility=hidden \
 	-c "$here/Combine/helpers.c" -o "$out/obj/CombineHelpers.o"
 
-# shellcheck disable=SC2086
-"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c $(find "$here/Combine/Sources" -name '*.swift' | sort) \
+# find order is filesystem order, so the source list goes through collect_sources' LC_ALL=C sort.
+collect_sources "$out/combine-src" "$out/Combine.sources"
+"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/Combine.sources" \
 	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
 	-module-cache-path "$out/module-cache" -swift-version 5 \
 	-module-name Combine \
 	-enable-library-evolution -parse-as-library -O \
-	-Xcc -fmodule-map-file="$here/Combine/include/module.modulemap" \
+	-Xcc -fmodule-map-file="$opencombine_src/Sources/COpenCombineHelpers/include/module.modulemap" \
 	-emit-module-path "$out/modules-combine/Combine.swiftmodule" \
 	-o "$out/obj/Combine.o"
 
