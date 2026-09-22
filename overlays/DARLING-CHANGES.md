@@ -55,6 +55,19 @@ upstream.
   macOS 26 app corpus binds either symbol, so nothing is lost against measured demand. Fixing
   Darling's `NSString.h` import would let both come back unmodified.
 
+- **`Foundation/Scanner.swift`: `scanUInt64(representation:)` and `scanDecimal()` omitted, and the
+  remaining scan methods call Darling's selector names.** The file is the Swift 5.4 Darwin overlay's
+  `Scanner.swift`, which supplies `currentIndex`, `scanCharacter()` and the `representation:`-taking
+  scan methods over the Objective-C `scanLocation`. `scanUInt64` needs
+  `-[NSScanner scanUnsignedLongLong:]`, which darling-foundation does not implement, and
+  `scanDecimal()` needs `Decimal`, which this overlay does not vendor. Apple's SDK renames
+  `scanInt:`, `scanHexInt:`, `scanLongLong:` and `scanHexLongLong:` to `scanInt32:`, `scanHexInt32:`,
+  `scanInt64:` and `scanHexInt64:`; darling-foundation's API notes do not, so the bodies call the
+  original names. The Swift-visible names are Apple's, so mangled names are unchanged. The two
+  `self.caseSensitive ? [] : .caseInsensitive` expressions become one `_compareOptions` property
+  built with `String.CompareOptions(rawValue:)`, for the `NSStringCompareOptions` reason recorded
+  above.
+
 - **swift-collections built without library evolution and linked into `libswiftFoundation`.**
   `InternalCollectionsUtilities` and `_RopeModule` are an implementation detail of
   `AttributedString`'s storage, not part of the SDK, so `build.sh` compiles them to objects and
