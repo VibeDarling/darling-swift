@@ -255,6 +255,13 @@ build_module SceneKit "$here/SceneKit/SceneKit.swift" -- -Xcc -fmodule-map-file=
 # OPENCOMBINE_SRC can point at an already-fetched checkout, the way SWIFT_COLLECTIONS_SRC does
 # above, so an offline build needs no network. Nothing verifies that checkout, so point it at the
 # pinned commit.
+# UniformTypeIdentifiers is arm64-only: the x86_64 slice built from ../libswiftUniformTypeIdentifiers.S held
+# placeholder values, so there is nothing to merge with.
+uti="$DARLING_ROOT/System/Library/Frameworks/UniformTypeIdentifiers.framework/Versions/A/UniformTypeIdentifiers"
+build_module UniformTypeIdentifiers "$here/UniformTypeIdentifiers/UniformTypeIdentifiers.swift" -- -Xcc -fmodule-map-file="$here/UniformTypeIdentifiers/shims/module.modulemap" --link "$uti" "$foundation" "$corefoundation" -lswiftFoundation -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
+cp "$out/libswiftUniformTypeIdentifiers.dylib" "$repo/libswiftUniformTypeIdentifiers.dylib"
+echo "updated libswiftUniformTypeIdentifiers.dylib: $(llvm-lipo -archs "$repo/libswiftUniformTypeIdentifiers.dylib")"
+
 OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/cristim/OpenCombine.git}
 OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-10df981a64800643559490d72174f43438562e73}
 opencombine_src=${OPENCOMBINE_SRC:-$out/OpenCombine}
