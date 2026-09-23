@@ -197,6 +197,7 @@ AttributedString/DiscontiguousAttributedSubstring.swift
 AttributedString/FoundationAttributes.swift
 AttributedString/String.Index+ABI.swift
 CodableWithConfiguration.swift
+Formatting/BinaryInteger+NumericStringRepresentation.swift
 Formatting/DiscreteFormatStyle.swift
 Formatting/FormatStyle.swift
 Formatting/FormatterCache.swift
@@ -204,6 +205,7 @@ Formatting/ParseStrategy.swift
 Formatting/ParseableFormatStyle.swift
 Locale/Locale+Language.swift
 LockedState.swift
+String/BidirectionalCollection.swift
 String/StringBlocks.swift
 UPSTREAM_FILES
 
@@ -215,17 +217,33 @@ while IFS= read -r rel; do
 done <<'UPSTREAM_INTL_FILES'
 BinaryFloatingPoint.swift
 Date+ICU.swift
+Duration+Utils.swift
+Formatting/ByteCountFormatStyle.swift
 Formatting/Date/Date+AnchoredRelativeFormatStyle.swift
 Formatting/Date/Date+RelativeFormatStyle.swift
+Formatting/Date/Date+VerbatimFormatStyle.swift
 Formatting/Date/DateFieldSymbol.swift
 Formatting/Date/DateFormatString.swift
-Formatting/Date/Date+VerbatimFormatStyle.swift
 Formatting/Date/DateFormatStyle.swift
 Formatting/Date/DateParseStrategy.swift
 Formatting/Date/ICUDateFormatter.swift
 Formatting/Date/ICURelativeDateFormatter.swift
+Formatting/Duration+Formatting.swift
+Formatting/Duration+TimeFormatStyle.swift
+Formatting/Number/BinaryFloatingPoint+FormatStyle.swift
+Formatting/Number/BinaryInteger+FormatStyle.swift
+Formatting/Number/FloatingPointFormatStyle.swift
+Formatting/Number/FloatingPointParseStrategy.swift
+Formatting/Number/ICULegacyNumberFormatter.swift
+Formatting/Number/ICUNumberFormatter.swift
+Formatting/Number/IntegerFormatStyle.swift
+Formatting/Number/IntegerParseStrategy.swift
+Formatting/Number/NumberAttributedFormat.swift
+Formatting/Number/NumberFormatStyleConfiguration.swift
 ICU/ICU+FieldPositer.swift
 ICU/ICU+Foundation.swift
+RangeExpression.swift
+TimeInterval+Utils.swift
 UPSTREAM_INTL_FILES
 
 # Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and

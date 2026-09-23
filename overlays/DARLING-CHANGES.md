@@ -180,26 +180,40 @@ point at a shared or read-only tree.
   that name is Darling's ICU 66.1 (`shims/FoundationICU.h`), so they compile unmodified. The headers
   they call into are admitted alongside `uloc.h` and `unumsys.h`. Every call the fetched date files
   make exists in ICU 66, `udat_formatForFields` and `udat_patternCharToDateFormatField` included.
-- **Fetched unmodified** (the `UPSTREAM_INTL_FILES` list in `build.sh`): `BinaryFloatingPoint.swift`,
-  `Date+ICU.swift`, `Date+AnchoredRelativeFormatStyle.swift`, `Date+RelativeFormatStyle.swift`,
-  `ICURelativeDateFormatter.swift`, `DateFieldSymbol.swift`, `DateFormatString.swift`, `Date+VerbatimFormatStyle.swift`,
-  `DateFormatStyle.swift`, `DateParseStrategy.swift`, `ICUDateFormatter.swift`,
-  `ICU+FieldPositer.swift` and `ICU+Foundation.swift`, plus `FoundationEssentials`'
-  `Formatting/FormatterCache.swift`.
-- **Two override files, each a departure from the patch rule** (lines the repository carries,
+- **Fetched unmodified**: the whole `UPSTREAM_INTL_FILES` list in `build.sh` (the date, number,
+  byte-count and duration styles and their ICU plumbing), plus `FoundationEssentials`'
+  `Formatting/FormatterCache.swift`, `Formatting/BinaryInteger+NumericStringRepresentation.swift`
+  and `String/BidirectionalCollection.swift`. `NumberFormatStyleConfiguration.swift` is fetched
+  whole, so it now supplies `FormatStyleCapitalizationContext`, which had been kept separately.
+- **Five override files, each a departure from the patch rule** (lines the repository carries,
   counted as above; the patch column is raw `diff -u`):
 
   | file | patch | file | smaller |
   |---|---|---|---|
   | `ICU+Enums.swift` | 27 lines | 253 lines | patch |
   | `ICUPatternGenerator.swift` | 41 lines | 103 lines | patch |
+  | `Decimal+FormatStyle.swift` | 20 lines | 456 lines | patch |
+  | `Decimal+ParseStrategy.swift` | 29 lines | 151 lines | patch |
+  | `Duration+UnitsFormatStyle.swift` | 54 lines | 789 lines | patch |
 
-  Both are kept as override files for the one-mechanism reason given for the override files above.
+  All are kept as override files for the one-mechanism reason given for the override files above.
   `ICU+Enums.swift` drops the aliases for `UDAT_NARROW_QUARTERS`, `UDAT_STANDALONE_NARROW_QUARTERS`
   (ICU 70) and `UDateFormatHourCycle` (ICU 67). `ICUPatternGenerator.swift` replaces
   `defaultHourCycle`, which calls `udatpg_getDefaultHourCycle` (ICU 67), with the hour field in the
   pattern skeleton `j` resolves to. CLDR defines `j` as the locale's preferred hour format, which is
   the datum that call reports.
+  The two `Decimal` files name the `FoundationEssentials` module in their non-framework branches;
+  here they name `Foundation`, the module they build into. `Duration+UnitsFormatStyle.swift`
+  stores its width as an internal copy of the `Measurement<UnitDuration>.FormatStyle.UnitWidth`
+  value swift-foundation's stub declares, since this overlay has no `Measurement` and the macOS
+  `Measurement.FormatStyle` is not open source; and its attributed format finds the `{0}`
+  placeholder with `BidirectionalCollection._range(of:anchored:backwards:)`, because
+  `AttributedString.range(of:options:)` is omitted here (above).
+- **`Decimal` is VibeDarling/darling-swift#63's**, `NSDecimal` imported as `Decimal` through
+  darling-foundation#58's API notes. The number styles only need it to spell rounding increments
+  and scales in ICU skeletons (percent formatting and `.increment` precision), and at run time
+  those need darling-foundation#57's `NSDecimalString`; without it they crash in Darling's
+  float-based fallback.
 - **`Foundation/FormattingSupport.swift` is written for Darling.** The fetched files reach into
   internals of swift-foundation's own `Locale` and `Calendar`, which this overlay's `NSLocale`- and
   `NSCalendar`-backed types do not have. It supplies them under the same names, copying upstream
@@ -242,6 +256,11 @@ point at a shared or read-only tree.
   Week counts are always 0 under Darling today, a CoreFoundation bug tracked in
   VibeDarling/darling#858, so with automatic fields ten days read "10 days" rather than a week and
   three days.
+- **Known divergence: zero integer digits.** `.precision(.integerLength(0))` (or an integer range
+  of `0...0`) asks ICU for the `integer-width/*` skeleton. ICU 66's skeleton parser has no option
+  that truncates every integer digit, so such a style falls back to upstream's unformatted
+  description of the value, and a `Duration.UnitsFormatStyle` with a value length of 0 traps on
+  upstream's force-unwrapped formatter.
 - **Known divergence: CLDR data.** ICU 66 carries CLDR 36. Output follows that data, so for example
   en_US puts a plain space before the day period, where CLDR 42 and later use U+202F.
 
@@ -272,7 +291,8 @@ tree:
   `AttributedString(NSAttributedString)` live. That mode needs the Clang modules `MachO.dyld`,
   `ReflectionInternal`, `CollectionsInternal` and `Foundation_Private.NSAttributedString`, none of
   which Darling has.
-- The ICU-backed `FormatStyle` implementations other than the date styles below, and
+- The ICU-backed `FormatStyle` implementations other than the date, number, byte-count and
+  duration styles below (for example `ListFormatStyle` and `Measurement.FormatStyle`), and
   `AttributedString(localized:)`.
 - `AttributedString(markdown:)` and `MarkdownParsingOptions`, which need swift-cmark.
 - `InlinePresentationIntent`. It is not declared anywhere in swift-foundation, and
