@@ -87,4 +87,34 @@ Fail<Int, TestError>(error: .boom)
     .store(in: &cancellables)
 check(failureSeen && !valueAfterFailure, "Fail delivers a failure completion")
 
+// Merge forwards both inputs and finishes only after both finish.
+let mergeA = PassthroughSubject<Int, Never>()
+let mergeB = PassthroughSubject<Int, Never>()
+var merged: [Int] = []
+var mergeFinished = false
+mergeA.merge(with: mergeB)
+    .sink(receiveCompletion: { if case .finished = $0 { mergeFinished = true } },
+          receiveValue: { merged.append($0) })
+    .store(in: &cancellables)
+mergeA.send(1)
+mergeB.send(2)
+mergeA.send(completion: .finished)
+check(!mergeFinished, "Merge waits for both publishers to finish")
+mergeB.send(3)
+mergeB.send(completion: .finished)
+check(merged == [1, 2, 3] && mergeFinished, "Merge interleaves values and finishes")
+
+// MergeMany accepts a sequence and watches all of its publishers.
+let manyA = PassthroughSubject<Int, Never>()
+let manyB = PassthroughSubject<Int, Never>()
+let manyC = PassthroughSubject<Int, Never>()
+var manyValues: [Int] = []
+Publishers.MergeMany([manyA, manyB, manyC])
+    .sink { manyValues.append($0) }
+    .store(in: &cancellables)
+manyB.send(20)
+manyA.send(10)
+manyC.send(30)
+check(manyValues == [20, 10, 30], "MergeMany forwards every upstream")
+
 print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
