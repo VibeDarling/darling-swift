@@ -16,6 +16,16 @@ import CoreGraphics
 #endif
 import _DarlingAppKitShims
 
+/// Runs the application's AppKit event loop using the supplied process arguments.
+public func NSApplicationMain(
+    _ argc: Int32,
+    _ argv: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>
+) -> Int32 {
+    let cArgv = UnsafeMutableRawPointer(argv)
+        .assumingMemoryBound(to: UnsafePointer<CChar>?.self)
+    return _DarlingAppKitShims.NSApplicationMain(argc, cArgv)
+}
+
 extension CGRect {
     /// Fills the rectangle with the current fill color using the given compositing operation.
     public func fill(using operation: NSCompositingOperation) {
