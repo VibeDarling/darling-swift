@@ -31,6 +31,7 @@ typedef enum NSCompositingOperation : NSUInteger {
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);
 void NSFrameRectWithWidthUsingOperation(NSRect rect, CGFloat frameWidth, NSCompositingOperation operation);
 void NSBeep(void);
+int NSApplicationMain(int argc, const char *argv[]);
 #endif
 
 #endif
