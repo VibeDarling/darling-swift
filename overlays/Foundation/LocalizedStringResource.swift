@@ -184,7 +184,7 @@ public struct LocalizedStringResource : ExpressibleByStringInterpolation, Custom
         switch bundle {
         case .main: return NSBundle.main()
         case .forClass(let cls): return NSBundle(for: cls)
-        case .atURL(let url): return NSBundle(url: url as NSURL)
+        case .atURL(let url): return NSBundle(url: url)
         }
     }
 }
