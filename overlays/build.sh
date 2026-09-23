@@ -213,13 +213,17 @@ while IFS= read -r rel; do
 	[ -n "$rel" ] || continue
 	printf '%s\n' "$foundation_src/Sources/FoundationInternationalization/$rel" >> "$out/foundation-upstream.list"
 done <<'UPSTREAM_INTL_FILES'
+BinaryFloatingPoint.swift
 Date+ICU.swift
+Formatting/Date/Date+AnchoredRelativeFormatStyle.swift
+Formatting/Date/Date+RelativeFormatStyle.swift
 Formatting/Date/DateFieldSymbol.swift
 Formatting/Date/DateFormatString.swift
 Formatting/Date/Date+VerbatimFormatStyle.swift
 Formatting/Date/DateFormatStyle.swift
 Formatting/Date/DateParseStrategy.swift
 Formatting/Date/ICUDateFormatter.swift
+Formatting/Date/ICURelativeDateFormatter.swift
 ICU/ICU+FieldPositer.swift
 ICU/ICU+Foundation.swift
 UPSTREAM_INTL_FILES
