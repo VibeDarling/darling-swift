@@ -1,8 +1,8 @@
 # Darling changes to vendored upstream sources
 
 `build.sh` fetches [apple/swift-foundation](https://github.com/apple/swift-foundation) at a pinned
-commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles 35 files
-from it in place. Those 35 are byte-identical to upstream, so they are not vendored here. Four of
+commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles 34 files
+from it in place. Those 34 are byte-identical to upstream, so they are not vendored here. Five of
 the 39 swift-foundation files this overlay uses are not taken from the checkout, because they
 diverge; those live in `Foundation/` and each one's reason is below, measured rather than assumed.
 [apple/swift-collections](https://github.com/apple/swift-collections) is fetched the same way, at
@@ -17,7 +17,7 @@ To see exactly how one of the three diverges, diff it against the checkout, for 
 `diff -u "$src/Sources/FoundationEssentials/AttributedString/AttributedStringProtocol.swift" overlays/Foundation/AttributedStringProtocol.swift`.
 
 Both projects are Apache License v2.0 with the Runtime Library Exception. Upstream file headers are
-preserved in the four files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
+preserved in the five files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
 beside them.
 
 `Foundation/Locale+Language.swift` was vendored by the Locale work and is byte-identical to
@@ -49,7 +49,7 @@ counting changed lines:
   swift-foundation by 2, 7, 11 and 38 lines. They look like near-pristine swift-foundation files and
   are not; they are 5.4's.
 - `Codable.swift` is closer to 5.4 (52 changed lines against 66).
-- The four files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
+- The five files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
 
 One file is genuinely undetermined and is flagged rather than assumed: `DateInterval.swift` is
 closer to swift-foundation (57 changed lines) than to 5.4 (87), while `README.md` attributes it to
@@ -59,7 +59,7 @@ expect to reach 39 only if they use the same provenance list.
 
 ## The swift-foundation files that are not taken from the checkout
 
-Four files, three of them described here and `Locale+Components.swift` under the `Locale` entries
+Five files, four of them described here and `Locale+Components.swift` under the `Locale` entries
 below.
 
 ### Why these are override files rather than patches
@@ -82,15 +82,25 @@ Per file, that gives a split answer:
 | `String+Comparison.swift` | 775 lines | 21 lines | override |
 | `AttributedStringProtocol.swift` | 57 lines | 271 lines | patch |
 | `Locale+Components.swift` | 23 lines | 2,086 lines | patch |
+| `FoundationAttributes.swift` | 88 lines | 964 lines | patch |
 
 The patch column is raw `diff -u` output; a committed patch file would also carry a short header
-saying why it exists, which adds a handful of lines to that side and changes none of the four
-directions. All four are kept as override files anyway, so that this overlay has one mechanism rather than two
+saying why it exists, which adds a handful of lines to that side and changes none of the five
+directions. All five are kept as override files anyway, so that this overlay has one mechanism rather than two
 for a saving of 57 lines on one file. That is a deliberate departure from the rule and is recorded
 here rather than left to look like the rule endorsing it. If a patch step is ever added,
 `Locale+Components.swift` is the strongest candidate by a factor of ninety, and the patch must be
 applied to a copy of the checkout, never to the checkout itself, since `SWIFT_FOUNDATION_SRC` can
 point at a shared or read-only tree.
+
+- **`FoundationAttributes.swift`, with `inlinePresentationIntent` moved out of `#if
+  FOUNDATION_FRAMEWORK`.** The stored property, `InlinePresentationIntentAttribute` and its
+  unavailable `Sendable` extension are compiled; the attribute drops its
+  `ObjectiveCConvertibleAttributedStringKey` conformance, which lives in the guarded half of
+  `Conversion.swift`. `InlinePresentationIntent` itself is the Clang import of darling-foundation's
+  `NSInlinePresentationIntent`, as on macOS; the file adds its `Hashable` and `Codable` conformances
+  (Apple documents both; the Clang importer declares neither for an option set), implemented by
+  `RawRepresentable`'s defaults.
 
 - **`CodableUtilities.swift`, reduced to two declarations.** Only `EmptyCodingKeys` and
   `DefaultAssociatedValueCodingKeys1` are kept, which is all that `AttributedString`'s
@@ -205,9 +215,6 @@ tree:
 - The ICU-backed `FormatStyle` implementations and `AttributedString(localized:)`. They need
   `_FoundationICU` from swift-foundation-icu.
 - `AttributedString(markdown:)` and `MarkdownParsingOptions`, which need swift-cmark.
-- `InlinePresentationIntent`. It is not declared anywhere in swift-foundation, and
-  `NSInlinePresentationIntent` is absent from darling-foundation's headers, so there is nothing to
-  take. It is not invented here.
 
 ## Fixes worth sending upstream
 None. Nothing in these two files needed correcting; the only changes are the exclusion above, which

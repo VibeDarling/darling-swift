@@ -226,7 +226,6 @@ AttributedString/AttributedSubstring.swift
 AttributedString/Collection Stdlib Defaults.swift
 AttributedString/Conversion.swift
 AttributedString/DiscontiguousAttributedSubstring.swift
-AttributedString/FoundationAttributes.swift
 AttributedString/String.Index+ABI.swift
 CodableWithConfiguration.swift
 Formatting/DiscreteFormatStyle.swift
