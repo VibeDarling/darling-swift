@@ -245,19 +245,18 @@ build_module SceneKit "$here/SceneKit/SceneKit.swift" -- -Xcc -fmodule-map-file=
 # first. An overlay that genuinely needs Combine (Dispatch's Scheduler conformance) should add
 # -I "$out/modules-combine" explicitly.
 #
-# OpenCombine is fetched rather than vendored, for the same reason swift-collections is above: 92
-# of its 103 sources are consumed exactly as upstream ships them. The 11 that are not, and why,
-# are in Combine/patches/, applied below.
+# OpenCombine is fetched rather than vendored, for the same reason swift-collections is above.
+# The fork adds functional Merge and MergeMany publishers; the Darwin-specific adaptations
+# remain in Combine/patches/, applied below.
 #
-# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible. No
-# release tag contains 1c6f02c (the newest, 0.14.0, is older), so there is no tag to record
-# beside it the way swift-collections has one; it is master's head of 2023-10-20. Check it with
-#   git ls-remote https://github.com/OpenCombine/OpenCombine.git refs/heads/master
+# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible.
+# This commit is on cristim/OpenCombine's feature/darling-merge-publishers branch and is
+# proposed upstream as OpenCombine PR #258.
 # OPENCOMBINE_SRC can point at an already-fetched checkout, the way SWIFT_COLLECTIONS_SRC does
 # above, so an offline build needs no network. Nothing verifies that checkout, so point it at the
 # pinned commit.
-OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/OpenCombine/OpenCombine.git}
-OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-1c6f02c7ed8140c0ba7a783aaddb6e0685a0037b}
+OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/cristim/OpenCombine.git}
+OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-10df981a64800643559490d72174f43438562e73}
 opencombine_src=${OPENCOMBINE_SRC:-$out/OpenCombine}
 if [ -z "${OPENCOMBINE_SRC:-}" ]; then
 	if [ ! -d "$opencombine_src/.git" ]; then
