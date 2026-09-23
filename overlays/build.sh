@@ -202,7 +202,6 @@ while IFS= read -r rel; do
 	printf '%s\n' "$foundation_src/Sources/FoundationEssentials/$rel" >> "$out/foundation-upstream.list"
 done <<'UPSTREAM_FILES'
 AttributedString/AttributeContainer.swift
-AttributedString/AttributeScope.swift
 AttributedString/AttributedString+AttributeTransformation.swift
 AttributedString/AttributedString+CharacterView.swift
 AttributedString/AttributedString+Guts.swift
@@ -218,13 +217,10 @@ AttributedString/AttributedString+_InternalRun.swift
 AttributedString/AttributedString+_InternalRuns.swift
 AttributedString/AttributedString+_InternalRunsSlice.swift
 AttributedString/AttributedString.swift
-AttributedString/AttributedStringAttribute.swift
 AttributedString/AttributedStringAttributeConstrainingBehavior.swift
-AttributedString/AttributedStringAttributeStorage.swift
 AttributedString/AttributedStringCodable.swift
 AttributedString/AttributedSubstring.swift
 AttributedString/Collection Stdlib Defaults.swift
-AttributedString/Conversion.swift
 AttributedString/DiscontiguousAttributedSubstring.swift
 AttributedString/String.Index+ABI.swift
 CodableWithConfiguration.swift
