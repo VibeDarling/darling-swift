@@ -11,8 +11,11 @@
 // build.sh sets the flag when the SDK actually carries the module map.
 #if DARLING_QUARTZCORE_CLANG_MODULE
 @_exported import QuartzCore
-#endif
+#else
+// Without the Clang module, CAFrameRateRange comes from the private shim. Importing the shim alongside the Clang
+// module would make every client of this overlay need the shim's module map.
 import _DarlingQuartzCoreShims
+#endif
 
 extension CAFrameRateRange {
     /// A frame rate range with the given bounds, in frames per second.
