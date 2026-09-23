@@ -153,6 +153,13 @@ point at a shared or read-only tree.
     Every `Locale.Language` initializer this overlay ships stores the code directly, so there is no
     identifier left to parse and the stored value is the complete answer; nil means the language
     genuinely has no code.
+- **`Locale.numberingSystem`, `Locale.Language(identifier:)`, `Locale.Language.Components(identifier:)`,
+  `Locale.Language.characterDirection` and `Locale.Language.maximalIdentifier` are ported from
+  upstream** (`Locale+Components_ICU.swift`, `Locale_ICU.swift`) into `Locale+Darling.swift`. They
+  make the same ICU calls upstream makes (`unumsys_open`, `uloc_getLanguage`/`Script`/`Country`,
+  `uloc_getCharacterOrientation`, `uloc_addLikelySubtags`, `uloc_toLanguageTag`), against Darling's
+  own ICU 66 through the `_FoundationICU` module in `shims/overlay-shims.modulemap`, which admits
+  only the ICU headers these calls need; `build.sh` links `libicucore`. OpenSwiftUI uses all five.
 - **`Locale.Language.script` and `Locale.Language.region` are not provided.** They are the other two
   members of the same upstream ICU file. Nothing in the app corpus binds them, and adding them would
   be more Darling reimplementation for no measured demand.

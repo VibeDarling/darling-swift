@@ -10,3 +10,7 @@ module _SwiftOSOverlayShims {
 module _SwiftXPCOverlayShims {
   header "XPCOverlayShims.h"
 }
+module _FoundationICU [system] {
+  header "FoundationICU.h"
+  export *
+}
