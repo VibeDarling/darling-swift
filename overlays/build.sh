@@ -98,6 +98,72 @@ build_module Dispatch "$here"/Dispatch/*.swift --link "$out/obj/Dispatch.mm.o" "
 build_module os "$here/os/os.swift" -- -Xcc -fmodule-map-file="$here/os/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 
+# Combine: OpenCombine built as module `Combine`, so its mangled names match what apps import.
+# Unlike the overlays above this is a framework binary, not a /usr/lib/swift dylib, and it has no
+# x86_64 slice to merge with. See overlays/README.md.
+#
+# Built before Foundation, and its .swiftmodule goes into "$out/modules": the Foundation overlay
+# imports Combine for NSObject.KeyValueObservingPublisher, so every client of Foundation has to be
+# able to load Combine, as with Apple's SDK. Combine itself is compiled without -I "$out/modules".
+#
+# OpenCombine is fetched rather than vendored, for the same reason swift-collections is above.
+# The fork adds functional Merge and MergeMany publishers; the Darwin-specific adaptations
+# remain in Combine/patches/, applied below.
+#
+# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible.
+# This commit is on cristim/OpenCombine's feature/darling-merge-publishers branch and is
+# proposed upstream as OpenCombine PR #258.
+# OPENCOMBINE_SRC can point at an already-fetched checkout, the way SWIFT_COLLECTIONS_SRC does
+# above, so an offline build needs no network. Nothing verifies that checkout, so point it at the
+# pinned commit.
+OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/cristim/OpenCombine.git}
+OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-10df981a64800643559490d72174f43438562e73}
+opencombine_src=${OPENCOMBINE_SRC:-$out/OpenCombine}
+if [ -z "${OPENCOMBINE_SRC:-}" ]; then
+	if [ ! -d "$opencombine_src/.git" ]; then
+		git clone --quiet --filter=blob:none "$OPENCOMBINE_URL" "$opencombine_src"
+	fi
+	git -C "$opencombine_src" fetch --quiet origin "$OPENCOMBINE_COMMIT" \
+		|| git -C "$opencombine_src" fetch --quiet origin
+	git -C "$opencombine_src" checkout --quiet --detach "$OPENCOMBINE_COMMIT"
+fi
+
+# Patch a copy, never the checkout: OPENCOMBINE_SRC may point at one this build does not own, and
+# rebuilding from scratch each time is what makes the patches apply exactly once.
+rm -rf "$out/combine-src"
+cp -R "$opencombine_src/Sources/OpenCombine" "$out/combine-src"
+for p in "$here"/Combine/patches/*.patch; do
+	patch -p1 -s -d "$out/combine-src" < "$p"
+done
+
+"$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" \
+	-I "$opencombine_src/Sources/COpenCombineHelpers/include" -Wall -Wextra -O2 -fvisibility=hidden \
+	-c "$here/Combine/helpers.c" -o "$out/obj/CombineHelpers.o"
+
+# find order is filesystem order, so the source list goes through collect_sources' LC_ALL=C sort.
+collect_sources "$out/combine-src" "$out/Combine.sources"
+"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/Combine.sources" \
+	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+	-module-cache-path "$out/module-cache" -swift-version 5 \
+	-module-name Combine \
+	-enable-library-evolution -parse-as-library -O \
+	-Xcc -fmodule-map-file="$opencombine_src/Sources/COpenCombineHelpers/include/module.modulemap" \
+	-emit-module-path "$out/modules/Combine.swiftmodule" \
+	-o "$out/obj/Combine.o"
+
+mkdir -p "$repo/Combine.framework/Versions/A"
+# shellcheck disable=SC2086
+"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" \
+	-install_name "/System/Library/Frameworks/Combine.framework/Versions/A/Combine" \
+	-compatibility_version 1.0.0 -current_version 1.0.0 \
+	$LD_EXTRA_FLAGS \
+	-L "$SWIFT_RESOURCE_DIR/macosx" \
+	"$out/obj/Combine.o" "$out/obj/CombineHelpers.o" \
+	"$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
+	-lswiftCore \
+	-o "$repo/Combine.framework/Versions/A/Combine"
+echo "updated Combine.framework: $(llvm-lipo -archs "$repo/Combine.framework/Versions/A/Combine")"
+
 # AttributedString stores its text in swift-collections' BigString. Both modules are an
 # implementation detail of the Foundation overlay: they are compiled without library evolution
 # and their objects are linked straight into libswiftFoundation, the way Apple's Foundation
@@ -209,7 +275,7 @@ UPSTREAM_FILES
 # Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and
 # the FormatStyle protocols (see README).
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
-build_module Foundation "$here"/Foundation/*.swift --sources-from "$out/foundation-upstream.list" -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" "$DARLING_ROOT/usr/lib/libicucore.A.dylib" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+build_module Foundation "$here"/Foundation/*.swift --sources-from "$out/foundation-upstream.list" -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" "$DARLING_ROOT/usr/lib/libicucore.A.dylib" "$repo/Combine.framework/Versions/A/Combine" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
 
 # Build just Foundation for focused overlay changes without rebuilding or replacing
 # the other shipped Swift dylibs.
@@ -242,81 +308,12 @@ build_module QuartzCore "$here/QuartzCore/QuartzCore.swift" -- $(clang_module_fl
 scenekit="$DARLING_ROOT/System/Library/Frameworks/SceneKit.framework/Versions/A/SceneKit"
 build_module SceneKit "$here/SceneKit/SceneKit.swift" -- -Xcc -fmodule-map-file="$here/SceneKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$scenekit" "$foundation" "$corefoundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 
-# Combine: OpenCombine built as module `Combine`, so its mangled names match what apps import.
-# Unlike the overlays above this is a framework binary, not a /usr/lib/swift dylib, and it has no
-# x86_64 slice to merge with. See overlays/README.md.
-#
-# Its .swiftmodule deliberately goes somewhere the overlays above do NOT import from. They pass
-# -I "$out/modules", and two of its sources are guarded on `#if !canImport(Combine)`, so a Combine
-# module on that path would silently change what the other overlays compile on every run after the
-# first. An overlay that genuinely needs Combine (Dispatch's Scheduler conformance) should add
-# -I "$out/modules-combine" explicitly.
-#
-# OpenCombine is fetched rather than vendored, for the same reason swift-collections is above.
-# The fork adds functional Merge and MergeMany publishers; the Darwin-specific adaptations
-# remain in Combine/patches/, applied below.
-#
-# Pinned BY COMMIT on purpose: a branch reference would make this build non-reproducible.
-# This commit is on cristim/OpenCombine's feature/darling-merge-publishers branch and is
-# proposed upstream as OpenCombine PR #258.
-# OPENCOMBINE_SRC can point at an already-fetched checkout, the way SWIFT_COLLECTIONS_SRC does
-# above, so an offline build needs no network. Nothing verifies that checkout, so point it at the
-# pinned commit.
 # UniformTypeIdentifiers is arm64-only: the x86_64 slice built from ../libswiftUniformTypeIdentifiers.S held
 # placeholder values, so there is nothing to merge with.
 uti="$DARLING_ROOT/System/Library/Frameworks/UniformTypeIdentifiers.framework/Versions/A/UniformTypeIdentifiers"
 build_module UniformTypeIdentifiers "$here/UniformTypeIdentifiers/UniformTypeIdentifiers.swift" -- -Xcc -fmodule-map-file="$here/UniformTypeIdentifiers/shims/module.modulemap" --link "$uti" "$foundation" "$corefoundation" -lswiftFoundation -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 cp "$out/libswiftUniformTypeIdentifiers.dylib" "$repo/libswiftUniformTypeIdentifiers.dylib"
 echo "updated libswiftUniformTypeIdentifiers.dylib: $(llvm-lipo -archs "$repo/libswiftUniformTypeIdentifiers.dylib")"
-
-OPENCOMBINE_URL=${OPENCOMBINE_URL:-https://github.com/cristim/OpenCombine.git}
-OPENCOMBINE_COMMIT=${OPENCOMBINE_COMMIT:-10df981a64800643559490d72174f43438562e73}
-opencombine_src=${OPENCOMBINE_SRC:-$out/OpenCombine}
-if [ -z "${OPENCOMBINE_SRC:-}" ]; then
-	if [ ! -d "$opencombine_src/.git" ]; then
-		git clone --quiet --filter=blob:none "$OPENCOMBINE_URL" "$opencombine_src"
-	fi
-	git -C "$opencombine_src" fetch --quiet origin "$OPENCOMBINE_COMMIT" \
-		|| git -C "$opencombine_src" fetch --quiet origin
-	git -C "$opencombine_src" checkout --quiet --detach "$OPENCOMBINE_COMMIT"
-fi
-
-# Patch a copy, never the checkout: OPENCOMBINE_SRC may point at one this build does not own, and
-# rebuilding from scratch each time is what makes the patches apply exactly once.
-rm -rf "$out/combine-src"
-cp -R "$opencombine_src/Sources/OpenCombine" "$out/combine-src"
-for p in "$here"/Combine/patches/*.patch; do
-	patch -p1 -s -d "$out/combine-src" < "$p"
-done
-
-mkdir -p "$out/modules-combine"
-"$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" \
-	-I "$opencombine_src/Sources/COpenCombineHelpers/include" -Wall -Wextra -O2 -fvisibility=hidden \
-	-c "$here/Combine/helpers.c" -o "$out/obj/CombineHelpers.o"
-
-# find order is filesystem order, so the source list goes through collect_sources' LC_ALL=C sort.
-collect_sources "$out/combine-src" "$out/Combine.sources"
-"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/Combine.sources" \
-	-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
-	-module-cache-path "$out/module-cache" -swift-version 5 \
-	-module-name Combine \
-	-enable-library-evolution -parse-as-library -O \
-	-Xcc -fmodule-map-file="$opencombine_src/Sources/COpenCombineHelpers/include/module.modulemap" \
-	-emit-module-path "$out/modules-combine/Combine.swiftmodule" \
-	-o "$out/obj/Combine.o"
-
-mkdir -p "$repo/Combine.framework/Versions/A"
-# shellcheck disable=SC2086
-"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" \
-	-install_name "/System/Library/Frameworks/Combine.framework/Versions/A/Combine" \
-	-compatibility_version 1.0.0 -current_version 1.0.0 \
-	$LD_EXTRA_FLAGS \
-	-L "$SWIFT_RESOURCE_DIR/macosx" \
-	"$out/obj/Combine.o" "$out/obj/CombineHelpers.o" \
-	"$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
-	-lswiftCore \
-	-o "$repo/Combine.framework/Versions/A/Combine"
-echo "updated Combine.framework: $(llvm-lipo -archs "$repo/Combine.framework/Versions/A/Combine")"
 
 # GroupActivities: Apple's is closed source and pure Swift, with no open-source twin, so the source
 # here declares only the public API shape, which is what makes the mangled names match what apps
@@ -332,8 +329,7 @@ mkdir -p "$out/modules-groupactivities"
 	-module-cache-path "$out/module-cache" -swift-version 5 \
 	-module-name GroupActivities \
 	-enable-library-evolution -parse-as-library -O \
-	-I "$out/modules-combine" \
-	-Xcc -fmodule-map-file="$here/Combine/include/module.modulemap" \
+	-I "$out/modules" \
 	-emit-module-path "$out/modules-groupactivities/GroupActivities.swiftmodule" \
 	-o "$out/obj/GroupActivities.o"
 
