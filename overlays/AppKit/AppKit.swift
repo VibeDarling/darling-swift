@@ -13,8 +13,9 @@ import CoreGraphics
 // build.sh sets the flag when the SDK actually carries the module map.
 #if DARLING_APPKIT_CLANG_MODULE
 @_exported import AppKit
-#endif
+#else
 import _DarlingAppKitShims
+#endif
 
 /// Runs the application's AppKit event loop using the supplied process arguments.
 public func NSApplicationMain(
@@ -23,7 +24,9 @@ public func NSApplicationMain(
 ) -> Int32 {
     let cArgv = UnsafeMutableRawPointer(argv)
         .assumingMemoryBound(to: UnsafePointer<CChar>?.self)
-    return _DarlingAppKitShims.NSApplicationMain(argc, cArgv)
+    // The type picks the C function over this overload; a module qualifier can't, since with the Clang module it is AppKit too.
+    let cMain: (Int32, UnsafeMutablePointer<UnsafePointer<CChar>?>) -> Int32 = NSApplicationMain
+    return cMain(argc, cArgv)
 }
 
 extension CGRect {
