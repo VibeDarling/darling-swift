@@ -10,6 +10,9 @@ diverge; those live in `Foundation/` and each one's reason is below, measured ra
 
 Set `SWIFT_FOUNDATION_SRC` or `SWIFT_COLLECTIONS_SRC` to an existing checkout of the matching commit
 to build offline. Neither checkout is ever written to, so no patch is applied to a tree you supply.
+[swiftlang/swift-cmark](https://github.com/swiftlang/swift-cmark) (BSD-2-Clause, see "How the
+fetched code is built") is fetched the same way, at `924936d0427cb25a61169739a7660230bffa6ea6` (tag
+`swift-6.3.3-RELEASE`), and `SWIFT_CMARK_SRC` does the same for it.
 To see exactly how one of the three diverges, diff it against the checkout, for example
 `diff -u "$src/Sources/FoundationEssentials/AttributedString/AttributedStringProtocol.swift" overlays/Foundation/AttributedStringProtocol.swift`.
 
@@ -174,6 +177,14 @@ point at a shared or read-only tree.
   `build.sh` passes ld64 an `-unexported_symbols_list` naming both module prefixes to keep their
   1,159 symbols out of the dylib's export table. Their own sources are unmodified; this is a choice
   about how they are built, not a change to them.
+
+- **swift-cmark is compiled to C objects and linked into `libswiftFoundation`.** `build.sh` compiles
+  the sources of its `cmark-gfm` and `cmark-gfm-extensions` package targets unmodified, with
+  `CMARK_GFM_STATIC_DEFINE` and `-fvisibility=hidden`, so all of its symbols stay private to the
+  dylib and none is exported, and with `NDEBUG`, as a release build, so its `assert`s neither abort
+  the app nor embed the checkout's path. The Foundation compile gets its two module maps. It is BSD-2-Clause,
+  plus the licenses its `COPYING` lists for individual files; that file is kept as
+  `Foundation/LICENSE-swift-cmark.txt` because the dylib contains the code.
 
 - **`build.sh` passes `-package-name swift-foundation`.** Without it, `package`-level declarations
   such as `LockedState` silently degrade to `fileprivate` and the module does not compile. The value
