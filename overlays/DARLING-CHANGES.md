@@ -264,6 +264,42 @@ point at a shared or read-only tree.
 - **Known divergence: CLDR data.** ICU 66 carries CLDR 36. Output follows that data, so for example
   en_US puts a plain space before the day period, where CLDR 42 and later use U+202F.
 
+## ISO 8601 format styles
+
+`Date.ISO8601FormatStyle` (`Date.ISO8601Format()`, `.iso8601`, the parse strategy and the
+`iso8601`, `iso8601WithTimeZone` and `iso8601Date` regex components) and
+`DateComponents.ISO8601FormatStyle` come from swift-foundation's `FoundationEssentials`, which
+formats and parses them in Swift without ICU.
+
+- **Fetched unmodified**: `Formatting/Date+ISO8601FormatStyle.swift`,
+  `Formatting/FormatParsingUtilities.swift` and the byte-buffer types they parse and format with,
+  `JSON/BufferView.swift`, `JSON/BufferViewIndex.swift`, `JSON/BufferViewIterator.swift` and
+  `OutputBuffer.swift`. `FormattingSupport.swift` no longer carries its own copy of `parseError`,
+  which now comes from `FormatParsingUtilities.swift`.
+- **`Foundation/DateComponents+ISO8601FormatStyle.swift` is an override file**, another departure
+  from the patch rule (a 12-line `diff -u` against an 821-line file), kept for the one-mechanism
+  reason above. Its one change: parsing an ordinal date checks the day against `1..<367`, the
+  Gregorian range upstream reads from `maximumRange(of: .dayOfYear)`, because this overlay's
+  `Calendar.Component` has no `dayOfYear` case.
+- **Day of year.** This overlay's `DateComponents` has no public `dayOfYear` (macOS 15). It gets an
+  internal stored one, which the ISO 8601 styles read and write and which takes part in equality;
+  `Calendar.date(from:)` resolves it as January 1st plus that many days, keeping the time of day,
+  with swift-foundation's precedence (a `day`, or a `weekday` with an ordinal, week of year or week
+  of month, wins), and `FormattingSupport.swift`'s `Calendar._dateComponents(_:from:)` fills it
+  from `ordinality(of: .day, in: .year, for:)`. So ordinal dates (`.year().day()`) format and parse, but
+  a `DateComponents` parsed from one does not show its day of year publicly and loses it when
+  bridged to `NSDateComponents` or encoded.
+- **`Calendar(identifier: .iso8601)`.** Darling's CoreFoundation has no ISO 8601 calendar, so this
+  overlay already fell back to a Gregorian one. That fallback now also takes swift-foundation's ISO
+  week rules (first weekday Monday, four days in the first week), which the week-of-year form
+  depends on: without them 2021-01-01 formats as `2021-W01-05` instead of `2020-W53-05`. The
+  calendar still reports `.gregorian` as its identifier.
+- **`FormattingSupport.swift` supplies the other internals the fetched files call**: the raw-value
+  `DateComponents` initializer (a plain memberwise one here, since this overlay's fields have no
+  `NSDateComponentUndefined` to skip), and `TimeZone.fixedOffsetFromGMT`, the offset of zones named
+  `GMT`, `GMT+hhmm` or `GMT-hhmm` and nil for others; those are the fixed-offset zones Darling's
+  `NSTimeZone` makes. `TimeZone.gmt` (public since macOS 13) is added to `TimeZone.swift`.
+
 ## How the fetched code is built
 
 - **swift-collections is built without library evolution and linked into `libswiftFoundation`.**
