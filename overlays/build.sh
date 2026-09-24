@@ -142,6 +142,38 @@ build_object _RopeModule "$collections_src/Sources/RopeModule"
 # because build_module re-splits its link inputs, where a bare '*' would be glob-expanded.
 printf '_$s11_RopeModule*\n_$s28InternalCollectionsUtilities*\n' > "$out/unexported.txt"
 
+# swift-cmark (swiftlang's cmark-gfm fork, BSD-2-Clause, see Foundation/LICENSE-swift-cmark.txt) is
+# the CommonMark/GFM parser under AttributedString's Markdown initializers. Fetched and pinned like
+# swift-collections, and linked into libswiftFoundation the same way: CMARK_GFM_STATIC_DEFINE plus
+# -fvisibility=hidden make every cmark symbol private to the dylib, so none is exported.
+# 924936d0... is tag swift-6.3.3-RELEASE; check that with
+#   git ls-remote https://github.com/swiftlang/swift-cmark.git refs/tags/swift-6.3.3-RELEASE
+# SWIFT_CMARK_SRC can point at an already-fetched checkout for an offline build. Nothing verifies
+# that checkout, so point it at the pinned commit.
+SWIFT_CMARK_URL=${SWIFT_CMARK_URL:-https://github.com/swiftlang/swift-cmark.git}
+SWIFT_CMARK_COMMIT=${SWIFT_CMARK_COMMIT:-924936d0427cb25a61169739a7660230bffa6ea6}
+cmark_src=${SWIFT_CMARK_SRC:-$out/swift-cmark}
+if [ -z "${SWIFT_CMARK_SRC:-}" ]; then
+	if [ ! -d "$cmark_src/.git" ]; then
+		git clone --quiet --filter=blob:none "$SWIFT_CMARK_URL" "$cmark_src"
+	fi
+	git -C "$cmark_src" fetch --quiet origin "$SWIFT_CMARK_COMMIT" \
+		|| git -C "$cmark_src" fetch --quiet origin
+	git -C "$cmark_src" checkout --quiet --detach "$SWIFT_CMARK_COMMIT"
+fi
+# The same sources as the package's cmark-gfm and cmark-gfm-extensions targets, in LC_ALL=C order
+# so the link order is stable.
+mkdir -p "$out/obj/cmark"
+: > "$out/cmark-objects.list"
+find "$cmark_src/src" "$cmark_src/extensions" -maxdepth 1 -name '*.c' | LC_ALL=C sort | while IFS= read -r c; do
+	obj="$out/obj/cmark/$(basename "$(dirname "$c")")-$(basename "$c" .c).o"
+	"$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" -O2 \
+		-fvisibility=hidden -DCMARK_GFM_STATIC_DEFINE -DNDEBUG \
+		-I "$cmark_src/src/include" -I "$cmark_src/extensions/include" -c "$c" -o "$obj"
+	printf '%s\n' "$obj" >> "$out/cmark-objects.list"
+done
+cmark_flags="-Xcc -DCMARK_GFM_STATIC_DEFINE -Xcc -I$cmark_src/src/include -Xcc -fmodule-map-file=$cmark_src/src/include/module.modulemap -Xcc -fmodule-map-file=$cmark_src/extensions/include/module.modulemap"
+
 # swift-foundation supplies AttributedString and the FormatStyle protocols. Fetched, not vendored,
 # for the same reason as swift-collections: 34 of the 37 files are taken exactly as upstream ships
 # them. The three that Darling has to change live in Foundation/ and are listed in
@@ -194,7 +226,6 @@ AttributedString/AttributedSubstring.swift
 AttributedString/Collection Stdlib Defaults.swift
 AttributedString/Conversion.swift
 AttributedString/DiscontiguousAttributedSubstring.swift
-AttributedString/FoundationAttributes.swift
 AttributedString/String.Index+ABI.swift
 CodableWithConfiguration.swift
 Formatting/DiscreteFormatStyle.swift
@@ -209,7 +240,8 @@ UPSTREAM_FILES
 # Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and
 # the FormatStyle protocols (see README).
 foundation="$DARLING_ROOT/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
-build_module Foundation "$here"/Foundation/*.swift --sources-from "$out/foundation-upstream.list" -- -package-name swift-foundation --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" "$foundation" "$corefoundation" "$DARLING_ROOT/usr/lib/libicucore.A.dylib" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
+# shellcheck disable=SC2086
+build_module Foundation "$here"/Foundation/*.swift --sources-from "$out/foundation-upstream.list" -- -package-name swift-foundation $cmark_flags --link -unexported_symbols_list "$out/unexported.txt" "$out/obj/_RopeModule.o" "$out/obj/InternalCollectionsUtilities.o" -filelist "$out/cmark-objects.list" "$foundation" "$corefoundation" "$DARLING_ROOT/usr/lib/libicucore.A.dylib" -lswiftDarwin -lswiftObjectiveC -lswiftCoreFoundation -lswiftDispatch
 
 # Build just Foundation for focused overlay changes without rebuilding or replacing
 # the other shipped Swift dylibs.
