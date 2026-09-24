@@ -287,8 +287,8 @@ fi
 coregraphics="$DARLING_ROOT/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
 build_module CoreGraphics "$here"/CoreGraphics/*.swift -- -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$coregraphics" "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
 
-# The AppKit and QuartzCore overlays re-export their Clang module, but only where the SDK ships one:
-# swift-darling's own SDK carries neither framework, while an SDK built over Darling's in-tree headers
+# The AppKit, QuartzCore and CoreText overlays re-export their Clang module, but only where the SDK ships one:
+# swift-darling's own SDK carries none of these frameworks, while an SDK built over Darling's in-tree headers
 # does. Without the re-export the Swift module shadows the Clang module and hides every Objective-C
 # type behind it; with it, against an SDK that has no such module, the import is a hard error.
 clang_module_flag() {
@@ -314,6 +314,13 @@ uti="$DARLING_ROOT/System/Library/Frameworks/UniformTypeIdentifiers.framework/Ve
 build_module UniformTypeIdentifiers "$here/UniformTypeIdentifiers/UniformTypeIdentifiers.swift" -- -Xcc -fmodule-map-file="$here/UniformTypeIdentifiers/shims/module.modulemap" --link "$uti" "$foundation" "$corefoundation" -lswiftFoundation -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
 cp "$out/libswiftUniformTypeIdentifiers.dylib" "$repo/libswiftUniformTypeIdentifiers.dylib"
 echo "updated libswiftUniformTypeIdentifiers.dylib: $(llvm-lipo -archs "$repo/libswiftUniformTypeIdentifiers.dylib")"
+
+# Intentionally partial: AttributedString.AdaptiveImageGlyph only (see README). arm64-only, like UniformTypeIdentifiers:
+# there is no x86_64 slice to merge with.
+coretext="$DARLING_ROOT/System/Library/Frameworks/CoreText.framework/Versions/A/CoreText"
+build_module CoreText "$here/CoreText/CoreText.swift" -- $(clang_module_flag CoreText CORETEXT) -package-name DarlingCoreText -Xcc -fmodule-map-file="$here/CoreText/shims/module.modulemap" -Xcc -fmodule-map-file="$here/UniformTypeIdentifiers/shims/module.modulemap" --link "$coretext" "$foundation" -lswiftUniformTypeIdentifiers -lswiftFoundation -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin
+cp "$out/libswiftCoreText.dylib" "$repo/libswiftCoreText.dylib"
+echo "updated libswiftCoreText.dylib: $(llvm-lipo -archs "$repo/libswiftCoreText.dylib")"
 
 # GroupActivities: Apple's is closed source and pure Swift, with no open-source twin, so the source
 # here declares only the public API shape, which is what makes the mangled names match what apps
