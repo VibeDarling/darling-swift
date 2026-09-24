@@ -1,20 +1,21 @@
 # Darling changes to vendored upstream sources
 
 `build.sh` fetches [apple/swift-foundation](https://github.com/apple/swift-foundation) at a pinned
-commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles 35 files
-from it in place. Those 35 are byte-identical to upstream, so they are not vendored here. Four of
-the 39 swift-foundation files this overlay uses are not taken from the checkout, because they
-diverge; those live in `Foundation/` and each one's reason is below, measured rather than assumed.
+commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles the files
+its `UPSTREAM_FILES` and `UPSTREAM_INTL_FILES` lists name in place. Those are byte-identical to
+upstream, so they are not vendored here. The swift-foundation files this overlay has to change are
+not taken from the checkout; they live in `Foundation/` and each one's reason is below, measured
+rather than assumed.
 [apple/swift-collections](https://github.com/apple/swift-collections) is fetched the same way, at
 `c11818f3cae0780656baa430b49e7f163f08dffd` (tag `1.1.6`), and nothing of it is vendored.
 
 Set `SWIFT_FOUNDATION_SRC` or `SWIFT_COLLECTIONS_SRC` to an existing checkout of the matching commit
 to build offline. Neither checkout is ever written to, so no patch is applied to a tree you supply.
-To see exactly how one of the three diverges, diff it against the checkout, for example
+To see exactly how one of the override files diverges, diff it against the checkout, for example
 `diff -u "$src/Sources/FoundationEssentials/AttributedString/AttributedStringProtocol.swift" overlays/Foundation/AttributedStringProtocol.swift`.
 
 Both projects are Apache License v2.0 with the Runtime Library Exception. Upstream file headers are
-preserved in the four files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
+preserved in the files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
 beside them.
 
 `Foundation/Locale+Language.swift` was vendored by the Locale work and is byte-identical to
@@ -22,11 +23,12 @@ beside them.
 it diverges by 7 lines, and `Foundation/Locale+Darling.swift` stays because it is Darling-written
 rather than upstream code. Both are documented below.
 
-`_FoundationICU` is **not** pulled in. `Locale.Language`, `Locale.LanguageCode`, `Locale.Region` and
-`Locale.Currency` all live in `FoundationEssentials`, which does not link ICU: they are value
-wrappers over a string identifier plus static ISO code tables. Only the accessors that *reach* them
-from a `Locale` live in `FoundationInternationalization`, and those are reimplemented over Darling's
-`NSLocale` instead (below).
+`Locale.Language`, `Locale.LanguageCode`, `Locale.Region` and `Locale.Currency` all live in
+`FoundationEssentials`, which does not link ICU: they are value wrappers over a string identifier
+plus static ISO code tables. Only the accessors that *reach* them from a `Locale` live in
+`FoundationInternationalization`, and those are reimplemented over Darling's `NSLocale` instead
+(below). The ICU-backed format styles are a different case and do use ICU, Darling's own; see
+"ICU-backed format styles" below.
 ## Darling-specific adaptations
 
 The other files in `Foundation/` come from the Swift 5.4 Darwin overlay and predate this mechanism;
@@ -34,7 +36,7 @@ The other files in `Foundation/` come from the Swift 5.4 Darwin overlay and pred
 
 ## Which files are swift-foundation's, and how to check
 
-The count of 39 is a provenance claim, and provenance cannot be settled by diffing against
+Which files count as swift-foundation's is a provenance claim, and provenance cannot be settled by diffing against
 swift-foundation alone: this overlay's other lineage is the Swift 5.4 Darwin overlay, and both
 descend from the same original code, so a file being close to swift-foundation proves nothing.
 Diffing against **both** lineages does settle it. Against
@@ -46,18 +48,18 @@ counting changed lines:
   swift-foundation by 2, 7, 11 and 38 lines. They look like near-pristine swift-foundation files and
   are not; they are 5.4's.
 - `Codable.swift` is closer to 5.4 (52 changed lines against 66).
-- The four files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
+- The swift-foundation files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
 
 One file is genuinely undetermined and is flagged rather than assumed: `DateInterval.swift` is
 closer to swift-foundation (57 changed lines) than to 5.4 (87), while `README.md` attributes it to
 the 5.4 overlay. It is identical to neither, so it is adapted, and this file does not claim to know
 from which. Anyone recounting should run the two-way diff rather than a one-way one, and should
-expect to reach 39 only if they use the same provenance list.
+expect to reach the same list only if they use the same provenance list.
 
 ## The swift-foundation files that are not taken from the checkout
 
-Four files, three of them described here and `Locale+Components.swift` under the `Locale` entries
-below.
+Each is described here, except `Locale+Components.swift` (under the `Locale` entries below) and the
+ICU formatting ones (under "ICU-backed format styles").
 
 ### Why these are override files rather than patches
 
@@ -127,7 +129,8 @@ point at a shared or read-only tree.
   `Calendar.Identifier.cldrIdentifier`, `Calendar.Identifier.legacyKeywordKey` and
   `TimeZone.legacyKeywordKey`, and its synthesised `Codable` conformance needs a `Codable`
   `Calendar.Identifier`. This overlay's `Calendar` and `TimeZone` come from the Swift 5.4 Darwin
-  overlay, not from swift-foundation, and have none of those. `icuIdentifier` is the whole point of
+  overlay, not from swift-foundation, and have none of those but `cldrIdentifier`, which
+  `FormattingSupport.swift` supplies for the date styles. `icuIdentifier` is the whole point of
   the type (it is how a `Locale.Components` turns back into a locale identifier), so a copy without
   it would be a public type that cannot do the one job it exists for. Excluding it costs nothing
   against measured demand: no binary in the macOS 26 app corpus binds a `Locale.Components` symbol.
@@ -164,6 +167,84 @@ point at a shared or read-only tree.
   members of the same upstream ICU file. Nothing in the app corpus binds them, and adding them would
   be more Darling reimplementation for no measured demand.
 
+## ICU-backed format styles
+
+`Date.FormatStyle` (with `Date.FormatStyle.Attributed`, `Date.AttributedStyle` and its
+`DiscreteFormatStyle` conformance), `Date.VerbatimFormatStyle`, `Date.ParseStrategy`,
+`Date.RelativeFormatStyle` and `Date.AnchoredRelativeFormatStyle` are built from swift-foundation's
+`FoundationInternationalization`, over the ICU Darling already ships, and
+`Date.ComponentsFormatStyle` is written over the same ICU (below).
+
+- **The fetched files import the same `_FoundationICU` module as the `Locale` accessors above.**
+  Upstream's sources `internal import _FoundationICU`, swift-foundation-icu's vendored ICU 74; here
+  that name is Darling's ICU 66.1 (`shims/FoundationICU.h`), so they compile unmodified. The headers
+  they call into are admitted alongside `uloc.h` and `unumsys.h`. Every call the fetched date files
+  make exists in ICU 66, `udat_formatForFields` and `udat_patternCharToDateFormatField` included.
+- **Fetched unmodified** (the `UPSTREAM_INTL_FILES` list in `build.sh`): `BinaryFloatingPoint.swift`,
+  `Date+ICU.swift`, `Date+AnchoredRelativeFormatStyle.swift`, `Date+RelativeFormatStyle.swift`,
+  `ICURelativeDateFormatter.swift`, `DateFieldSymbol.swift`, `DateFormatString.swift`, `Date+VerbatimFormatStyle.swift`,
+  `DateFormatStyle.swift`, `DateParseStrategy.swift`, `ICUDateFormatter.swift`,
+  `ICU+FieldPositer.swift` and `ICU+Foundation.swift`, plus `FoundationEssentials`'
+  `Formatting/FormatterCache.swift`.
+- **Two override files, each a departure from the patch rule** (lines the repository carries,
+  counted as above; the patch column is raw `diff -u`):
+
+  | file | patch | file | smaller |
+  |---|---|---|---|
+  | `ICU+Enums.swift` | 27 lines | 253 lines | patch |
+  | `ICUPatternGenerator.swift` | 41 lines | 103 lines | patch |
+
+  Both are kept as override files for the one-mechanism reason given for the override files above.
+  `ICU+Enums.swift` drops the aliases for `UDAT_NARROW_QUARTERS`, `UDAT_STANDALONE_NARROW_QUARTERS`
+  (ICU 70) and `UDateFormatHourCycle` (ICU 67). `ICUPatternGenerator.swift` replaces
+  `defaultHourCycle`, which calls `udatpg_getDefaultHourCycle` (ICU 67), with the hour field in the
+  pattern skeleton `j` resolves to. CLDR defines `j` as the locale's preferred hour format, which is
+  the datum that call reports.
+- **`Foundation/FormattingSupport.swift` is written for Darling.** The fetched files reach into
+  internals of swift-foundation's own `Locale` and `Calendar`, which this overlay's `NSLocale`- and
+  `NSCalendar`-backed types do not have. It supplies them under the same names, copying upstream
+  wherever upstream's code does not depend on those internals, and marks each copied piece with its
+  source file. The differences in behaviour:
+  - `Locale.identifierCapturingPreferences` is the identifier and `forceFirstWeekday` is `nil`:
+    Darling's `Locale` carries no per-user preference overrides, so there are none to capture.
+  - `Calendar.localeIdentifierWithCalendar` canonicalizes the identifier with `uloc_canonicalize`
+    (which folds a BCP 47 `-u-ca-` extension into keywords) and sets the `calendar` keyword with
+    `uloc_setKeywordValue`, where upstream round-trips through `Locale.Components`, excluded here.
+  - `Calendar.ComponentSet` keeps upstream's bits except `isLeapMonth` and `isRepeatedDay`, which
+    nothing uses. This overlay's `Calendar.Component` has no `dayOfYear`, so a day-of-year field
+    gets no update schedule; upstream's `UpdateSchedule.reduce` drops it the same way.
+  - `Locale.hourCycle` (public, macOS 13) consults an `hours` keyword, then an `rg` region
+    override, then the locale's own data, in the order upstream's `Locale_ICU` does. Without `rg`,
+    upstream asks for the locale's region and this asks for the locale; ICU resolves `j` by region.
+  - `Date.formatted(_:)` and the two `Date(_:strategy:)` initializers are upstream's
+    `Date+FormatStyle.swift`, whose non-framework branch names the `FoundationEssentials` module.
+  - ICU failures are logged through `os_log`; upstream calls an interpolating `Logger.error` that
+    Darling's `os` overlay does not have.
+- **`Foundation/Date+ComponentsFormatStyle.swift` is written for Darling.** swift-foundation ships
+  only a stub of `Date.ComponentsFormatStyle` off-Darwin (`Date+ComponentsFormatStyle+Stub.swift`,
+  whose `Field` is kept verbatim); the macOS implementation is not open source. The rest follows
+  the SDK's `Foundation.swiftinterface` and Apple's published documentation
+  (<https://developer.apple.com/documentation/foundation/date/componentsformatstyle>), over Apple ICU's
+  `uameasfmt` measure formatter, which gives the styles their unit names and list patterns:
+  `wide`, `abbreviated`, `condensedAbbreviated` and `narrow` are its `WIDE`, `SHORT`, `SHORTER` and
+  `NARROW` widths; `spellOut` formats each value with ICU's spell-out rules and joins them with the
+  locale's unit list pattern; `timeDuration` is its positional `NUMERIC` width over hours, minutes
+  and seconds, leading zero fields dropped and at least two kept. The components come from
+  `Calendar.dateComponents(_:from:to:)`, zero values dropped as the documentation says (a zero
+  duration shows the smallest field). Where the documentation is silent these are Darling's
+  choices, not observed macOS behaviour: `fields == nil` means all seven fields, the default
+  `allowedUnits` of `NSDateComponentsFormatter`; `fields == []` formats as an empty string;
+  `isPositive == false` formats the negative components as ICU renders them (for `timeDuration`
+  ICU falls back from positional to a unit list, since it takes no negative positional values).
+  The `DiscreteFormatStyle` bounds are found by stepping the moving end one smallest-field unit
+  and bisecting to where the components change, to within a millisecond, the resolution at which
+  CFCalendar compares dates; month and year clamping rule out inverting the calendar arithmetic.
+  Week counts are always 0 under Darling today, a CoreFoundation bug tracked in
+  VibeDarling/darling#858, so with automatic fields ten days read "10 days" rather than a week and
+  three days.
+- **Known divergence: CLDR data.** ICU 66 carries CLDR 36. Output follows that data, so for example
+  en_US puts a plain space before the day period, where CLDR 42 and later use U+202F.
+
 ## How the fetched code is built
 
 - **swift-collections is built without library evolution and linked into `libswiftFoundation`.**
@@ -191,8 +272,8 @@ tree:
   `AttributedString(NSAttributedString)` live. That mode needs the Clang modules `MachO.dyld`,
   `ReflectionInternal`, `CollectionsInternal` and `Foundation_Private.NSAttributedString`, none of
   which Darling has.
-- The ICU-backed `FormatStyle` implementations and `AttributedString(localized:)`. They need
-  `_FoundationICU` from swift-foundation-icu.
+- The ICU-backed `FormatStyle` implementations other than the date styles below, and
+  `AttributedString(localized:)`.
 - `AttributedString(markdown:)` and `MarkdownParsingOptions`, which need swift-cmark.
 - `InlinePresentationIntent`. It is not declared anywhere in swift-foundation, and
   `NSInlinePresentationIntent` is absent from darling-foundation's headers, so there is nothing to

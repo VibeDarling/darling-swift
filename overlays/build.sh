@@ -199,12 +199,34 @@ AttributedString/String.Index+ABI.swift
 CodableWithConfiguration.swift
 Formatting/DiscreteFormatStyle.swift
 Formatting/FormatStyle.swift
+Formatting/FormatterCache.swift
 Formatting/ParseStrategy.swift
 Formatting/ParseableFormatStyle.swift
 Locale/Locale+Language.swift
 LockedState.swift
 String/StringBlocks.swift
 UPSTREAM_FILES
+
+# ICU-backed format styles, unmodified, over Darling's ICU 66 as `_FoundationICU` (shims/FoundationICU.h);
+# Foundation/FormattingSupport.swift supplies the Locale and Calendar internals (see DARLING-CHANGES.md).
+while IFS= read -r rel; do
+	[ -n "$rel" ] || continue
+	printf '%s\n' "$foundation_src/Sources/FoundationInternationalization/$rel" >> "$out/foundation-upstream.list"
+done <<'UPSTREAM_INTL_FILES'
+BinaryFloatingPoint.swift
+Date+ICU.swift
+Formatting/Date/Date+AnchoredRelativeFormatStyle.swift
+Formatting/Date/Date+RelativeFormatStyle.swift
+Formatting/Date/DateFieldSymbol.swift
+Formatting/Date/DateFormatString.swift
+Formatting/Date/Date+VerbatimFormatStyle.swift
+Formatting/Date/DateFormatStyle.swift
+Formatting/Date/DateParseStrategy.swift
+Formatting/Date/ICUDateFormatter.swift
+Formatting/Date/ICURelativeDateFormatter.swift
+ICU/ICU+FieldPositer.swift
+ICU/ICU+Foundation.swift
+UPSTREAM_INTL_FILES
 
 # Intentionally partial: String, Array, Dictionary and Set bridging, plus AttributedString and
 # the FormatStyle protocols (see README).
