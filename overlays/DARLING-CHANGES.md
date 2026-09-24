@@ -82,7 +82,7 @@ Per file, that gives a split answer:
 | `String+Comparison.swift` | 775 lines | 21 lines | override |
 | `AttributedStringProtocol.swift` | 57 lines | 271 lines | patch |
 | `Locale+Components.swift` | 23 lines | 2,086 lines | patch |
-| `FoundationAttributes.swift` | 88 lines | 964 lines | patch |
+| `FoundationAttributes.swift` | 145 lines | 956 lines | patch |
 
 The patch column is raw `diff -u` output; a committed patch file would also carry a short header
 saying why it exists, which adds a handful of lines to that side and changes none of the five
@@ -100,7 +100,14 @@ point at a shared or read-only tree.
   `Conversion.swift`. `InlinePresentationIntent` itself is the Clang import of darling-foundation's
   `NSInlinePresentationIntent`, as on macOS; the file adds its `Hashable` and `Codable` conformances
   (Apple documents both; the Clang importer declares neither for an option set), implemented by
-  `RawRepresentable`'s defaults.
+  `RawRepresentable`'s defaults. The Markdown attributes `presentationIntent`,
+  `markdownSourcePosition` and `listItemDelimiter` are ungated the same way, with their `Sendable`
+  extensions, by closing and reopening the `#if` around them. Their `name`s are literals, because
+  darling-foundation declares none of the three key constants: `"NSPresentationIntent"` (the key in
+  Apple's `AttributedString` JSON quoted in automerge-swift's `notes/EncodingAttributedStringsIntoMarks.md`),
+  `"NSListItemDelimiter"` (swift-foundation proposal SF-0025) and `"NSMarkdownSourcePosition"`, which
+  follows the same pattern but was not confirmed from a public source. `ListItemDelimiterAttribute`
+  drops its Objective-C conversion, as above.
 
 - **`CodableUtilities.swift`, reduced to two declarations.** Only `EmptyCodingKeys` and
   `DefaultAssociatedValueCodingKeys1` are kept, which is all that `AttributedString`'s
@@ -214,7 +221,42 @@ tree:
   which Darling has.
 - The ICU-backed `FormatStyle` implementations and `AttributedString(localized:)`. They need
   `_FoundationICU` from swift-foundation-icu.
-- `AttributedString(markdown:)` and `MarkdownParsingOptions`, which need swift-cmark.
+- `Range(_:in:)` from an `AttributedString.MarkdownSourcePosition`, which `Conversion.swift` guards
+  and which needs swift-foundation's private UTF-8 offset bookkeeping.
+
+## Markdown, written for Darling
+
+swift-foundation does not ship `AttributedString(markdown:)` (its issue #44), so
+`Foundation/AttributedString+Markdown.swift` and `Foundation/PresentationIntent.swift` are written for
+Darling, from Apple's documentation and the declarations in the SDK's `Foundation.swiftinterface`,
+whose public signatures they match (except the two `Range` initializers above). swift-cmark parses,
+with its `table`, `strikethrough` and `autolink` extensions; `.inlineOnly` and
+`.inlineOnlyPreservingWhitespace` map to cmark's own `CMARK_OPT_INLINE_ONLY` and
+`CMARK_OPT_PRESERVE_WHITESPACE`. The tree becomes:
+
+- blocks: a `presentationIntent` per paragraph, header, code block (language hint = first word of
+  the info string), table cell, and the lists, list items, block quotes, tables and rows around
+  them, innermost first, with identities numbered in document order. Blocks are not separated by
+  any character. List item ordinals follow an ordered list's start number; body rows count from 1
+  after the header row. A thematic break has no text, so it produces nothing and takes no identity;
+- inlines: `inlinePresentationIntent` (emphasis, strong, code, strikethrough, a soft break as a space,
+  a hard break as a newline, inline and block HTML as literal text); `link` and `imageURL`
+  resolved against `baseURL` (for `contentsOf:`, the file URL when `baseURL` is nil); an image's
+  alt text as its content;
+- `listItemDelimiter`, `markdownSourcePosition` (from cmark's 1-based line and UTF-8 column
+  positions, when `appliesSourcePositionAttributes` is set; cmark gives soft and hard breaks no
+  position, so their runs have none) and `languageIdentifier` (`languageCode`);
+- `^[text](key: value)`, with `allowsExtendedAttributes`, through the scope's
+  `MarkdownDecodableAttributedStringKey`s. swift-foundation only enumerates a scope's keys under
+  `FOUNDATION_FRAMEWORK`, so the file walks the scope with the standard library's `_forEachField`;
+  the JSON5 list is rewritten as JSON (quoted keys and strings, no trailing comma) for `JSONDecoder`.
+
+Invalid UTF-8, an invalid link destination or an extended-attribute list that does not decode is
+an `NSFormattingError` `CocoaError` under `.throwError`; under `.returnPartiallyParsedIfPossible` the
+failing part is dropped and parsing continues. The shape of the result was checked against the
+public example in automerge-swift's notes above (no separators, a soft break as a space, identities
+and innermost-first components); the other details above are Darling's reading of the documentation,
+not verified against macOS.
 
 ## Fixes worth sending upstream
 None. Nothing in these two files needed correcting; the only changes are the exclusion above, which
