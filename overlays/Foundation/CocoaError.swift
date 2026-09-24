@@ -45,6 +45,11 @@ public struct CocoaError : _BridgedStoredNSError {
 }
 
 extension CocoaError.Code {
+  /// `NSFormattingError` (2048), which the format styles' parse strategies throw.
+  public static var formatting: CocoaError.Code {
+    return CocoaError.Code(rawValue: 2048)
+  }
+
   @available(macOS, introduced: 10.7) @available(iOS, introduced: 5.0)
   public static var fileWriteFileExists: CocoaError.Code {
     return CocoaError.Code(rawValue: 516)
@@ -52,6 +57,11 @@ extension CocoaError.Code {
 }
 
 extension CocoaError {
+  /// `NSFormattingError`, declared on both types as in the SDK.
+  public static var formatting: CocoaError.Code {
+    return CocoaError.Code(rawValue: 2048)
+  }
+
   @available(macOS, introduced: 10.7) @available(iOS, introduced: 5.0)
   public static var fileWriteFileExists: CocoaError.Code {
     return CocoaError.Code(rawValue: 516)
