@@ -10,24 +10,22 @@
 
 @_exported import Foundation // Clang module
 
-extension NSNotificationCenter {
+extension NotificationCenter {
     /// An asynchronous sequence of the notifications posted with a name (and object) after it was created.
     public final class Notifications : AsyncSequence, @unchecked Sendable {
         public typealias Element = Notification
 
         private let stream: AsyncStream<Notification>
-        private let center: NSNotificationCenter
+        private let center: NotificationCenter
         private let observer: Any
 
-        fileprivate init(center: NSNotificationCenter, name: NSNotificationName, object: AnyObject?) {
+        fileprivate init(center: NotificationCenter, name: NSNotificationName, object: AnyObject?) {
             var continuation: AsyncStream<Notification>.Continuation!
             stream = AsyncStream(bufferingPolicy: .unbounded) { continuation = $0 }
             self.center = center
             let yield = continuation!
-            observer = center.addObserver(forName: name.rawValue, object: object, queue: nil) { notification in
-                if let notification = notification {
-                    yield.yield(notification as Notification)
-                }
+            observer = center.addObserver(forName: name, object: object, queue: nil) { notification in
+                yield.yield(notification)
             }
         }
 
