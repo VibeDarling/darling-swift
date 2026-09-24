@@ -148,6 +148,8 @@ See the header of `build.sh` for the required toolchain, resource directory, and
 
 `tests/uniform_type_identifiers.swift` covers the UniformTypeIdentifiers overlay: `UTType.folder` and the other symbols AppZapper 3000 imports, static type identifiers, conformance, supertypes, identifier/filename-extension/MIME/tag lookups (including dynamic types), preferred tags, exported and imported types, hashing, bridging to and from the Objective-C `UTType`, and `Codable` for `UTType` and `UTTagClass`. It passes 46/46 under Darling. Build it like the tests above with `-Xcc -fmodule-map-file=` for `UniformTypeIdentifiers/shims/module.modulemap`, and link `libswiftUniformTypeIdentifiers.dylib` and `libswiftFoundation.dylib`.
 
+`tests/url_content_type.swift` covers `URLResourceValues.contentType`: files with known and unknown extensions, a folder, an `.app` directory, `allValues`, the other resource keys alongside `.contentTypeKey`, and a missing file. It needs the typed `NSURLResourceKey` constants from darling-foundation and a CoreFoundation that returns `NSURLContentTypeKey`. Build it like `uniform_type_identifiers.swift`, also linking `UniformTypeIdentifiers.framework`.
+
 ## CryptoKit
 
 `../CryptoKit.framework/Versions/A/CryptoKit` is [swift-crypto](https://github.com/apple/swift-crypto) (Apache-2.0) built as module `CryptoKit`, from the `darling/cryptokit-module` branch of the fork at [cristim/swift-crypto](https://github.com/cristim/swift-crypto), pinned in `build.sh` by commit rather than by branch so the build stays reproducible. The fork's `DARLING-CHANGES.md` is the authoritative list of how it diverges from upstream; the summary is:
