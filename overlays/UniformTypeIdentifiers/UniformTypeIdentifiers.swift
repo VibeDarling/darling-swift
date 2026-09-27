@@ -8,7 +8,14 @@
 // export yet (css, heics, exr, dng, jpegxl, tarArchive, ahap, geoJSON, linkPresentationMetadata).
 
 import Foundation
+// Re-export the UniformTypeIdentifiers Clang module (UTTypeReference and the UTType* constants) where the SDK
+// has one, so clients need no private module map; otherwise take the declarations from the shim. build.sh sets
+// the flag, as for QuartzCore.
+#if DARLING_UNIFORMTYPEIDENTIFIERS_CLANG_MODULE
+@_exported import UniformTypeIdentifiers
+#else
 import _DarlingUniformTypeIdentifiersShims
+#endif
 
 public struct UTType: @unchecked Sendable {
 	internal let _reference: UTTypeReference
