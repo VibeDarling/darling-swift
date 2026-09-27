@@ -170,8 +170,9 @@ point at a shared or read-only tree.
 ## ICU-backed format styles
 
 `Date.FormatStyle` (with `Date.FormatStyle.Attributed`, `Date.AttributedStyle` and its
-`DiscreteFormatStyle` conformance), `Date.VerbatimFormatStyle` and `Date.ParseStrategy` are built
-from swift-foundation's `FoundationInternationalization`, over the ICU Darling already ships, and
+`DiscreteFormatStyle` conformance), `Date.VerbatimFormatStyle`, `Date.ParseStrategy`,
+`Date.RelativeFormatStyle` and `Date.AnchoredRelativeFormatStyle` are built from swift-foundation's
+`FoundationInternationalization`, over the ICU Darling already ships, and
 `Date.ComponentsFormatStyle` is written over the same ICU (below).
 
 - **The fetched files import the same `_FoundationICU` module as the `Locale` accessors above.**
@@ -179,8 +180,9 @@ from swift-foundation's `FoundationInternationalization`, over the ICU Darling a
   that name is Darling's ICU 66.1 (`shims/FoundationICU.h`), so they compile unmodified. The headers
   they call into are admitted alongside `uloc.h` and `unumsys.h`. Every call the fetched date files
   make exists in ICU 66, `udat_formatForFields` and `udat_patternCharToDateFormatField` included.
-- **Fetched unmodified** (the `UPSTREAM_INTL_FILES` list in `build.sh`): `Date+ICU.swift`,
-  `DateFieldSymbol.swift`, `DateFormatString.swift`, `Date+VerbatimFormatStyle.swift`,
+- **Fetched unmodified** (the `UPSTREAM_INTL_FILES` list in `build.sh`): `BinaryFloatingPoint.swift`,
+  `Date+ICU.swift`, `Date+AnchoredRelativeFormatStyle.swift`, `Date+RelativeFormatStyle.swift`,
+  `ICURelativeDateFormatter.swift`, `DateFieldSymbol.swift`, `DateFormatString.swift`, `Date+VerbatimFormatStyle.swift`,
   `DateFormatStyle.swift`, `DateParseStrategy.swift`, `ICUDateFormatter.swift`,
   `ICU+FieldPositer.swift` and `ICU+Foundation.swift`, plus `FoundationEssentials`'
   `Formatting/FormatterCache.swift`.
