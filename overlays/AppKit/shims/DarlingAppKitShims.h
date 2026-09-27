@@ -1,13 +1,12 @@
-// Declarations the AppKit Swift overlay needs, written for Darling from AppKit's public API documentation, for the
-// case where Darling's AppKit (Cocotron) has no Clang module. Where the SDK does give AppKit one, the overlay imports
-// <AppKit/AppKit.h> instead and none of these are declared here. The functions are exported by Darling's
-// AppKit.framework.
+// Declarations the AppKit Swift overlay needs, written for Darling from AppKit's public API documentation. The overlay
+// imports this only when the SDK has no AppKit Clang module; with one it re-exports that instead. The functions are
+// exported by Darling's AppKit.framework.
 #ifndef DARLING_APPKIT_SHIMS_H
 #define DARLING_APPKIT_SHIMS_H
 
 #import <Foundation/Foundation.h>
 
-// Where the SDK gives AppKit a Clang module, use it: cocotron declares every one of these six
+// Where the SDK has AppKit's headers (without a module map), use them: cocotron declares every one of these six
 // itself (NSGraphics.h, NSCell.h, AppKit.h), so redeclaring them is an ODR clash on the classes
 // and an ambiguity on the enum and the functions, not a duplicate definition.
 #if __has_include(<AppKit/AppKit.h>)
