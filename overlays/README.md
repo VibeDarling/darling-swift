@@ -123,7 +123,7 @@ The full 5.4 Foundation overlay doesn't compile against Darling's Foundation hea
 
 ### Foundation format styles
 
-`Date.FormatStyle`, `Date.VerbatimFormatStyle` and `Date.ParseStrategy` are built from swift-foundation's `FoundationInternationalization`, fetched unmodified where possible, over Darling's own ICU 66 (`libicucore`) exposed to those files as the `_FoundationICU` module. This supersedes the Foundation row's "ICU-backed format styles ... are left out" for these types; `DARLING-CHANGES.md` ("ICU-backed format styles") lists every file and every divergence.
+`Date.FormatStyle`, `Date.VerbatimFormatStyle` and `Date.ParseStrategy` are built from swift-foundation's `FoundationInternationalization`, fetched unmodified where possible, over Darling's own ICU 66 (`libicucore`) exposed to those files as the `_FoundationICU` module. `Date.ComponentsFormatStyle`, which swift-foundation ships only as a stub, is written for Darling over the same ICU's measure formatter. This supersedes the Foundation row's "ICU-backed format styles ... are left out" for these types; `DARLING-CHANGES.md` ("ICU-backed format styles") lists every file and every divergence.
 
 ## Coverage of what macOS 26 apps import
 

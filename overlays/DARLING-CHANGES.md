@@ -171,7 +171,8 @@ point at a shared or read-only tree.
 
 `Date.FormatStyle` (with `Date.FormatStyle.Attributed`, `Date.AttributedStyle` and its
 `DiscreteFormatStyle` conformance), `Date.VerbatimFormatStyle` and `Date.ParseStrategy` are built
-from swift-foundation's `FoundationInternationalization`, over the ICU Darling already ships.
+from swift-foundation's `FoundationInternationalization`, over the ICU Darling already ships, and
+`Date.ComponentsFormatStyle` is written over the same ICU (below).
 
 - **The fetched files import the same `_FoundationICU` module as the `Locale` accessors above.**
   Upstream's sources `internal import _FoundationICU`, swift-foundation-icu's vendored ICU 74; here
@@ -217,6 +218,28 @@ from swift-foundation's `FoundationInternationalization`, over the ICU Darling a
     `Date+FormatStyle.swift`, whose non-framework branch names the `FoundationEssentials` module.
   - ICU failures are logged through `os_log`; upstream calls an interpolating `Logger.error` that
     Darling's `os` overlay does not have.
+- **`Foundation/Date+ComponentsFormatStyle.swift` is written for Darling.** swift-foundation ships
+  only a stub of `Date.ComponentsFormatStyle` off-Darwin (`Date+ComponentsFormatStyle+Stub.swift`,
+  whose `Field` is kept verbatim); the macOS implementation is not open source. The rest follows
+  the SDK's `Foundation.swiftinterface` and Apple's published documentation
+  (<https://developer.apple.com/documentation/foundation/date/componentsformatstyle>), over Apple ICU's
+  `uameasfmt` measure formatter, which gives the styles their unit names and list patterns:
+  `wide`, `abbreviated`, `condensedAbbreviated` and `narrow` are its `WIDE`, `SHORT`, `SHORTER` and
+  `NARROW` widths; `spellOut` formats each value with ICU's spell-out rules and joins them with the
+  locale's unit list pattern; `timeDuration` is its positional `NUMERIC` width over hours, minutes
+  and seconds, leading zero fields dropped and at least two kept. The components come from
+  `Calendar.dateComponents(_:from:to:)`, zero values dropped as the documentation says (a zero
+  duration shows the smallest field). Where the documentation is silent these are Darling's
+  choices, not observed macOS behaviour: `fields == nil` means all seven fields, the default
+  `allowedUnits` of `NSDateComponentsFormatter`; `fields == []` formats as an empty string;
+  `isPositive == false` formats the negative components as ICU renders them (for `timeDuration`
+  ICU falls back from positional to a unit list, since it takes no negative positional values).
+  The `DiscreteFormatStyle` bounds are found by stepping the moving end one smallest-field unit
+  and bisecting to where the components change, to within a millisecond, the resolution at which
+  CFCalendar compares dates; month and year clamping rule out inverting the calendar arithmetic.
+  Week counts are always 0 under Darling today, a CoreFoundation bug tracked in
+  VibeDarling/darling#858, so with automatic fields ten days read "10 days" rather than a week and
+  three days.
 - **Known divergence: CLDR data.** ICU 66 carries CLDR 36. Output follows that data, so for example
   en_US puts a plain space before the day period, where CLDR 42 and later use U+202F.
 
