@@ -68,7 +68,7 @@ if let secure = NSKeyedUnarchiver(forReadingWith: data) {
 }
 
 // URL.resourceValues(forKeys:) and URLResourceValues.creationDate.
-let creationKey = URLResourceKey(rawValue: NSURLCreationDateKey)
+let creationKey = URLResourceKey.creationDateKey
 var template = Array((NSTemporaryDirectory() + "/console-resource.XXXXXX").utf8CString)
 let fd = mkstemp(&template)
 if fd >= 0 {
