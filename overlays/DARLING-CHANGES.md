@@ -1,8 +1,8 @@
 # Darling changes to vendored upstream sources
 
 `build.sh` fetches [apple/swift-foundation](https://github.com/apple/swift-foundation) at a pinned
-commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles 34 files
-from it in place. Those 34 are byte-identical to upstream, so they are not vendored here. Five of
+commit (`dbacc67779dc0a41ddc9493acbaa332d76c9fb03`, tag `swift-6.3.3-RELEASE`) and compiles 30 files
+from it in place. Those 30 are byte-identical to upstream, so they are not vendored here. Nine of
 the 39 swift-foundation files this overlay uses are not taken from the checkout, because they
 diverge; those live in `Foundation/` and each one's reason is below, measured rather than assumed.
 [apple/swift-collections](https://github.com/apple/swift-collections) is fetched the same way, at
@@ -13,11 +13,11 @@ to build offline. Neither checkout is ever written to, so no patch is applied to
 [swiftlang/swift-cmark](https://github.com/swiftlang/swift-cmark) (BSD-2-Clause, see "How the
 fetched code is built") is fetched the same way, at `924936d0427cb25a61169739a7660230bffa6ea6` (tag
 `swift-6.3.3-RELEASE`), and `SWIFT_CMARK_SRC` does the same for it.
-To see exactly how one of the three diverges, diff it against the checkout, for example
+To see exactly how one of the nine diverges, diff it against the checkout, for example
 `diff -u "$src/Sources/FoundationEssentials/AttributedString/AttributedStringProtocol.swift" overlays/Foundation/AttributedStringProtocol.swift`.
 
 Both projects are Apache License v2.0 with the Runtime Library Exception. Upstream file headers are
-preserved in the five files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
+preserved in the nine files kept here, and swift-foundation's `LICENSE.md` and `NOTICE.txt` sit
 beside them.
 
 `Foundation/Locale+Language.swift` was vendored by the Locale work and is byte-identical to
@@ -49,7 +49,7 @@ counting changed lines:
   swift-foundation by 2, 7, 11 and 38 lines. They look like near-pristine swift-foundation files and
   are not; they are 5.4's.
 - `Codable.swift` is closer to 5.4 (52 changed lines against 66).
-- The five files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
+- The nine files kept here have **no 5.4 counterpart at all**, which is what fixes their lineage.
 
 One file is genuinely undetermined and is flagged rather than assumed: `DateInterval.swift` is
 closer to swift-foundation (57 changed lines) than to 5.4 (87), while `README.md` attributes it to
@@ -59,7 +59,7 @@ expect to reach 39 only if they use the same provenance list.
 
 ## The swift-foundation files that are not taken from the checkout
 
-Five files, four of them described here and `Locale+Components.swift` under the `Locale` entries
+Nine files, eight of them described here and `Locale+Components.swift` under the `Locale` entries
 below.
 
 ### Why these are override files rather than patches
@@ -82,12 +82,17 @@ Per file, that gives a split answer:
 | `String+Comparison.swift` | 775 lines | 21 lines | override |
 | `AttributedStringProtocol.swift` | 57 lines | 271 lines | patch |
 | `Locale+Components.swift` | 23 lines | 2,086 lines | patch |
-| `FoundationAttributes.swift` | 145 lines | 956 lines | patch |
+| `FoundationAttributes.swift` | 202 lines | 979 lines | patch |
+| `Conversion.swift` | 38 lines | 572 lines | patch |
+| `AttributeScope.swift` | 63 lines | 214 lines | patch |
+| `AttributedStringAttribute.swift` | 16 lines | 219 lines | patch |
+| `AttributedStringAttributeStorage.swift` | 50 lines | 291 lines | patch |
 
 The patch column is raw `diff -u` output; a committed patch file would also carry a short header
-saying why it exists, which adds a handful of lines to that side and changes none of the five
-directions. All five are kept as override files anyway, so that this overlay has one mechanism rather than two
-for a saving of 57 lines on one file. That is a deliberate departure from the rule and is recorded
+saying why it exists, which adds a handful of lines to that side and changes none of the nine
+directions. All nine are kept as override files anyway, so that this overlay has one mechanism rather than two;
+the four conversion files alone would save about 1,130 lines as patches, so they strengthen the case for a
+patch step. That is a deliberate departure from the rule and is recorded
 here rather than left to look like the rule endorsing it. If a patch step is ever added,
 `Locale+Components.swift` is the strongest candidate by a factor of ninety, and the patch must be
 applied to a copy of the checkout, never to the checkout itself, since `SWIFT_FOUNDATION_SRC` can
@@ -106,8 +111,28 @@ point at a shared or read-only tree.
   darling-foundation declares none of the three key constants: `"NSPresentationIntent"` (the key in
   Apple's `AttributedString` JSON quoted in automerge-swift's `notes/EncodingAttributedStringsIntoMarks.md`),
   `"NSListItemDelimiter"` (swift-foundation proposal SF-0025) and `"NSMarkdownSourcePosition"`, which
-  follows the same pattern but was not confirmed from a public source. `ListItemDelimiterAttribute`
-  drops its Objective-C conversion, as above.
+  follows the same pattern but was not confirmed from a public source.
+  `listItemDelimiter`, `inlinePresentationIntent`, `link` and `personNameComponent` keep upstream's
+  `ObjectiveCConvertibleAttributedStringKey` conformances (the last two moved out of the `#if`);
+  `inlinePresentationIntent` reads its `NSNumber` with `UInt(truncating:)`, because darling-foundation
+  declares `-unsignedIntegerValue` as a method with no `uintValue` Swift name.
+
+- **`Conversion.swift`, `AttributedStringAttribute.swift`, `AttributedStringAttributeStorage.swift`
+  and `AttributeScope.swift`, with their `#if FOUNDATION_FRAMEWORK` guards removed** around the
+  Objective-C conversions: `ObjectiveCConvertibleAttributedStringKey`, `AttributeContainer` and
+  `[NSAttributedString.Key: Any]` in both directions, `NSAttributedString(_:)` and
+  `AttributedString(_: NSAttributedString)` with their `including:` forms, the
+  `assumingSendable` storage they use, and the scope reflection behind `attributeKeyTypes()` and
+  `_loadDefaultAttributes()`. The only code changes: `AttributeScope.swift` reads a scope's stored
+  properties with the standard library's `@_spi(Reflection) _forEachField` instead of
+  `ReflectionInternal`, keys its cache by `ObjectIdentifier` instead of `ReflectionInternal.Type`, and
+  drops `internal import MachO.dyld` (`Darwin` already declares `_dyld_image_count`);
+  `Conversion.swift` reads a raw `Int` with `Int(truncating:)` (darling-foundation's `-intValue` is a
+  method) and annotates
+  `NSMutableAttributedString(string:)`, which Darling's header imports as an implicitly unwrapped
+  initializer. `_loadDefaultAttributes()` looks up the AppKit, UIKit, SwiftUI and Accessibility scopes
+  by mangled name as upstream does; no Darling overlay defines one yet, so the default table is the
+  Foundation scope alone.
 
 - **`CodableUtilities.swift`, reduced to two declarations.** Only `EmptyCodingKeys` and
   `DefaultAssociatedValueCodingKeys1` are kept, which is all that `AttributedString`'s
@@ -212,13 +237,10 @@ point at a shared or read-only tree.
 Nothing here is stubbed or approximated. These are left out because no honest source exists in the
 tree:
 
-- The `#if FOUNDATION_FRAMEWORK`-guarded parts of the fetched files. The files themselves are
-  compiled whole and their unguarded declarations do work, so `AttributeScopes` and
-  `FoundationAttributes` exist; what is missing is the guarded half, which is where the attribute
-  scope's dynamic registration, `AttributedString`'s `Codable` conformances and
-  `AttributedString(NSAttributedString)` live. That mode needs the Clang modules `MachO.dyld`,
-  `ReflectionInternal`, `CollectionsInternal` and `Foundation_Private.NSAttributedString`, none of
-  which Darling has.
+- The rest of the `#if FOUNDATION_FRAMEWORK`-guarded parts of the fetched files, such as
+  `AttributedString`'s `Codable` conformances. That mode needs the Clang modules `CollectionsInternal`
+  and `Foundation_Private.NSAttributedString`, which Darling does not have. The Objective-C
+  conversions are the exception, above.
 - The ICU-backed `FormatStyle` implementations. They need `_FoundationICU` from swift-foundation-icu.
 - `Range(_:in:)` from an `AttributedString.MarkdownSourcePosition`, which `Conversion.swift` guards
   and which needs swift-foundation's private UTF-8 offset bookkeeping.
@@ -246,9 +268,8 @@ with its `table`, `strikethrough` and `autolink` extensions; `.inlineOnly` and
   positions, when `appliesSourcePositionAttributes` is set; cmark gives soft and hard breaks no
   position, so their runs have none) and `languageIdentifier` (`languageCode`);
 - `^[text](key: value)`, with `allowsExtendedAttributes`, through the scope's
-  `MarkdownDecodableAttributedStringKey`s. swift-foundation only enumerates a scope's keys under
-  `FOUNDATION_FRAMEWORK`, so the file walks the scope with the standard library's `_forEachField`;
-  the JSON5 list is rewritten as JSON (quoted keys and strings, no trailing comma) for `JSONDecoder`.
+  `MarkdownDecodableAttributedStringKey`s, gathered by `AttributeScope.markdownKeyTypes()`; the JSON5
+  list is rewritten as JSON (quoted keys and strings, no trailing comma) for `JSONDecoder`.
 
 Invalid UTF-8, an invalid link destination or an extended-attribute list that does not decode is
 an `NSFormattingError` `CocoaError` under `.throwError`; under `.returnPartiallyParsedIfPossible` the
