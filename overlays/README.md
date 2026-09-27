@@ -121,6 +121,10 @@ dropped today because it needs Combine. That is a separate change.
 
 The full 5.4 Foundation overlay doesn't compile against Darling's Foundation headers, which have no `@property` declarations, nullability or Swift names; that gives about 2,300 errors. It also calls Objective-C APIs Darling lacks. macOS 14+ apps import their Swift Foundation symbols (1,616 of them in macOS 26's apps) from `Foundation.framework` itself, so a fuller overlay would also need Darling's Foundation to re-export it. Bridging `String` and the collection types is the piece Swift code needs first: 25 of the apps import the `Array`/`Dictionary`/`Set` bridging entry points. To be useful from Swift, it relies on `Foundation.apinotes` `SwiftBridge` entries (VibeDarling/darling-foundation#5).
 
+### Foundation format styles
+
+`Date.FormatStyle`, `Date.VerbatimFormatStyle` and `Date.ParseStrategy` are built from swift-foundation's `FoundationInternationalization`, fetched unmodified where possible, over Darling's own ICU 66 (`libicucore`) exposed to those files as the `_FoundationICU` module. This supersedes the Foundation row's "ICU-backed format styles ... are left out" for these types; `DARLING-CHANGES.md` ("ICU-backed format styles") lists every file and every divergence.
+
 ## Coverage of what macOS 26 apps import
 
 Measured against every binary in `/System/Applications` of a macOS 26.6.2 install:
