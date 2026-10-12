@@ -20,6 +20,44 @@ typedef enum NSCompositingOperation : NSUInteger {
 	NSCompositingOperationSourceOver = 2,
 } NSCompositingOperation;
 
+// Named for the same reason as NSCompositingOperation: a named enum imports as the nominal Clang
+// type `So12NSBezelStyleV`, which is what macOS 26 apps import for the glass button styles. The
+// values mirror Darling's own header (NSButtonCell.h), plus NSBezelStyleGlass, which is new in the
+// macOS 26 SDK.
+typedef enum NSBezelStyle : NSUInteger {
+	NSRoundedBezelStyle = 1,
+	NSRegularSquareBezelStyle = 2,
+	NSThickSquareBezelStyle = 3,
+	NSThickerSquareBezelStyle = 4,
+	NSDisclosureBezelStyle = 5,
+	NSShadowlessSquareBezelStyle = 6,
+	NSCircularBezelStyle = 7,
+	NSTexturedSquareBezelStyle = 8,
+	NSHelpButtonBezelStyle = 9,
+	NSSmallSquareBezelStyle = 10,
+	NSTexturedRoundedBezelStyle = 11,
+	NSRoundRectBezelStyle = 12,
+	NSRecessedBezelStyle = 13,
+	NSRoundedDisclosureBezelStyle = 14,
+	NSInlineBezelStyle = 15,
+	NSBezelStyleGlass = 16,
+
+	// Names used by the macOS 10.14+ SDK.
+	NSBezelStyleRounded = NSRoundedBezelStyle,
+	NSBezelStyleRegularSquare = NSRegularSquareBezelStyle,
+	NSBezelStyleDisclosure = NSDisclosureBezelStyle,
+	NSBezelStyleShadowlessSquare = NSShadowlessSquareBezelStyle,
+	NSBezelStyleCircular = NSCircularBezelStyle,
+	NSBezelStyleTexturedSquare = NSTexturedSquareBezelStyle,
+	NSBezelStyleHelpButton = NSHelpButtonBezelStyle,
+	NSBezelStyleSmallSquare = NSSmallSquareBezelStyle,
+	NSBezelStyleTexturedRounded = NSTexturedRoundedBezelStyle,
+	NSBezelStyleRoundRect = NSRoundRectBezelStyle,
+	NSBezelStyleRecessed = NSRecessedBezelStyle,
+	NSBezelStyleRoundedDisclosure = NSRoundedDisclosureBezelStyle,
+	NSBezelStyleInline = NSInlineBezelStyle,
+} NSBezelStyle;
+
 @interface NSSound : NSObject
 @end
 

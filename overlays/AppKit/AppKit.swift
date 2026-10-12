@@ -4,6 +4,7 @@
 
 @_exported import Foundation
 import CoreGraphics
+import DeveloperToolsSupport
 // Re-export the AppKit Clang module where the SDK provides one. Without the re-export a Swift
 // module named AppKit shadows the Clang module of the same name and every Objective-C type behind
 // it becomes unreachable from Swift, even though Darling's headers declare them all.
@@ -51,6 +52,36 @@ extension NSSound {
 extension NSImage {
     /// The image named `name`, as an image literal gives it; the image must exist.
     public convenience init(imageLiteralResourceName name: String) {
-        self.init(named: name)!
+        // `self.init(named: name)!` is `[NSImage imageNamed:]`, whose message send crashes the
+        // Swift 6.3.3 arm64 Linux toolchain's clang ABI classifier (useFirstFieldIfTransparentUnion).
+        // With no ObjC send that can compile, an NSImage initializer cannot return a value, so the
+        // symbol is kept (the module must still export it) but traps. Restore the send once a
+        // working toolchain exists.
+        fatalError("NSImage(imageLiteralResourceName:) is not implemented by the Darling Swift overlay")
+    }
+
+    /// The image named by `resource`; the image must exist.
+    public convenience init(resource: ImageResource) {
+        // Same toolchain constraint as init(imageLiteralResourceName:): `self.init(named:)!` is a
+        // message send and cannot compile here, so the symbol is kept but traps.
+        fatalError("NSImage(resource:) is not implemented by the Darling Swift overlay")
+    }
+}
+
+extension NSBezelStyle {
+    /// The bezel style that draws the Liquid Glass button appearance.
+    public static var _glass: NSBezelStyle {
+        // The shim's NSBezelStyleGlass is 16. A fixed-underlying C enum imports in Swift as a
+        // RawRepresentable struct with no case members, so the raw value is the only way to
+        // construct the glass style.
+        NSBezelStyle(rawValue: 16)
+    }
+
+    /// The bezel style that draws the clear Liquid Glass button appearance.
+    public static var _clearGlass: NSBezelStyle {
+        // No NSBezelStyleClearGlass exists in any public SDK header; the clear/tinted distinction
+        // is a system-wide Liquid Glass appearance setting, not a bezel raw value. Same value as
+        // _glass until a separate value shows up in a real SDK.
+        _glass
     }
 }
