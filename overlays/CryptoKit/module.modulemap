@@ -1,0 +1,4 @@
+module DarlingAEAD {
+    header "aead.h"
+    export *
+}
