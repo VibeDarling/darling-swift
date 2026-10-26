@@ -58,7 +58,12 @@ InstallSymlink(Versions/Current/Combine "${CMAKE_INSTALL_PREFIX}/${COMBINE_FRAME
 # Arm64-only frameworks until their x86_64 slices are merged
 if (TARGET_ARM64)
 	set(CRYPTOKIT_FRAMEWORK_DIR "libexec/darling/System/Library/Frameworks/CryptoKit.framework")
-	install(PROGRAMS CryptoKit.framework/Versions/A/CryptoKit
+    set(DARLING_CRYPTOKIT_BINARY "${CMAKE_CURRENT_SOURCE_DIR}/CryptoKit.framework/Versions/A/CryptoKit"
+        CACHE FILEPATH "Source-built arm64 CryptoKit framework executable")
+    if(NOT EXISTS "${DARLING_CRYPTOKIT_BINARY}")
+        message(FATAL_ERROR "CryptoKit executable does not exist: ${DARLING_CRYPTOKIT_BINARY}")
+    endif()
+	install(PROGRAMS "${DARLING_CRYPTOKIT_BINARY}"
 		DESTINATION "${CRYPTOKIT_FRAMEWORK_DIR}/Versions/A")
 	InstallSymlink(A "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/Versions/Current")
 	InstallSymlink(Versions/Current/CryptoKit "${CMAKE_INSTALL_PREFIX}/${CRYPTOKIT_FRAMEWORK_DIR}/CryptoKit")
