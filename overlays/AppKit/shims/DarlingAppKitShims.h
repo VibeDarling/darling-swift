@@ -18,6 +18,9 @@ typedef enum NSCompositingOperation : NSUInteger {
 	NSCompositingOperationClear = 0,
 	NSCompositingOperationCopy = 1,
 	NSCompositingOperationSourceOver = 2,
+
+	// The name Darling's AppKit headers use.
+	NSCompositeSourceOver = NSCompositingOperationSourceOver,
 } NSCompositingOperation;
 
 // Named for the same reason as NSCompositingOperation: a named enum imports as the nominal Clang
