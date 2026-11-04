@@ -92,6 +92,25 @@ class ScanAppsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.report()["apps"][0]["missing_syms"], {"swift": {}, "other": {}})
 
+    def test_symbol_named_weak_is_still_checked(self):
+        dylib(self.work / "libfull.dylib", "int swift_weakLoadStrong(void){return 1;}\n", self.work,
+              "/usr/lib/libfix.dylib")
+        self.install("libfix.dylib", "int have(void){return 1;}\n")
+        app(self.prefix, "Fix", "extern int swift_weakLoadStrong(void);\nint main(void){return swift_weakLoadStrong();}\n",
+            self.work, ["full"])
+        result = self.scan()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.report()["apps"][0]["missing_syms"]["other"], {"libfix": 1})
+
+    def test_bundle_without_info_plist_is_an_error(self):
+        app(self.prefix, "NoPlist", "int main(void){return 0;}\n", self.work, [])
+        (self.prefix / "Applications/NoPlist.app/Contents/Info.plist").unlink()
+        result = self.scan()
+        self.assertEqual(result.returncode, 1)
+        report = self.report()
+        self.assertEqual(report["apps"], [])
+        self.assertIn("NoPlist", report["errors"])
+
     def test_unreadable_executable_is_an_error_not_resolvable(self):
         app(self.prefix, "Broken", "", self.work, [], corrupt=True)
         result = self.scan()

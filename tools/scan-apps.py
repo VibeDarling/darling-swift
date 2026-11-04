@@ -90,7 +90,7 @@ def load_time_images(app, images):
     """
     exe = bundle_exe(app)
     if not exe:
-        return []
+        raise ScanError(f"{app}: no readable Info.plist CFBundleExecutable, executable unknown")
     inside = set(os.path.realpath(i) for i in images)
     seen, queue = {os.path.realpath(exe)}, [exe]
     while queue:
@@ -219,9 +219,11 @@ def scan_app(a, ap):
                 missing_libs["swift" if is_swift_lib(install) else "other"].append(short + " (x86_64-only)")
         for line in run("llvm-nm", "-um", f"--arch={slice_of(image)}", image).splitlines():
             parts = line.split()
-            if "(from" not in parts or "weak" in line:
+            if "(from" not in parts:
                 continue
             i = parts.index("(from")
+            if "weak" in parts[:i - 1]:  # nm's weak flag, not a symbol name containing "weak"
+                continue
             sym, lib = parts[i - 1], parts[i + 1].rstrip(")")
             libfile = bound.get(lib) or bound.get(lib + ".dylib")
             if libfile is None:
