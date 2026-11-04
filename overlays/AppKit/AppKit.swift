@@ -31,10 +31,10 @@ public func NSApplicationMain(
 }
 
 extension CGRect {
-    /// Fills the rectangle with the current fill color using the given compositing operation, by default the
-    /// current context's.
-    public func fill(using operation: NSCompositingOperation =
-        NSGraphicsContext.current?.compositingOperation() ?? NSCompositeSourceOver) {
+    /// Fills the rectangle with the current fill color using the given compositing operation, by default source-over.
+    /// The default does not consult the current graphics context: that is an Objective-C message send, which this
+    /// overlay avoids (see NSImage.init(imageLiteralResourceName:) below).
+    public func fill(using operation: NSCompositingOperation = NSCompositeSourceOver) {
         NSRectFillUsingOperation(self, operation)
     }
 
