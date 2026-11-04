@@ -31,8 +31,10 @@ public func NSApplicationMain(
 }
 
 extension CGRect {
-    /// Fills the rectangle with the current fill color using the given compositing operation.
-    public func fill(using operation: NSCompositingOperation) {
+    /// Fills the rectangle with the current fill color using the given compositing operation, by default the
+    /// current context's.
+    public func fill(using operation: NSCompositingOperation =
+        NSGraphicsContext.current?.compositingOperation() ?? NSCompositeSourceOver) {
         NSRectFillUsingOperation(self, operation)
     }
 
