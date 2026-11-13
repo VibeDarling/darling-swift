@@ -25,6 +25,10 @@ Sources from the Swift project are licensed under the Apache License v2.0 with R
 
 The OpenCombine sources `build.sh` fetches are MIT (Copyright (c) 2019 Sergej Jaskiewicz); `Combine/LICENSE` is kept in the tree because the `Combine.framework` binary committed here is built from them. `Combine/helpers.c` and the patches in `Combine/patches/` were written for Darling. Sources from the Swift project are licensed under the Apache License v2.0 with Runtime Library Exception. `AppKit/`, `CoreGraphics/` (except the two `CGContext` methods from 5.2), `CoreText/`, `GroupActivities/`, `os/`, `XPC/`, `Dispatch/Darling+NewerSDK.swift`, `Dispatch/DarlingSerialExecutor.m`, `Dispatch/include/swift/Runtime/Debug.h` and `tests/` were written for Darling.
 
+### arm64e
+
+`DARLING_SWIFT_APPKIT_ONLY=1 DARLING_SWIFT_ARCH=arm64e sh build.sh` builds the AppKit, CoreGraphics and DeveloperToolsSupport overlays for arm64e into `overlays/build-arm64e`, leaving the repository binaries alone; see the header of `build.sh` for what `SWIFT_RESOURCE_DIR` and `DARLING_LD` must be. The objects have their caps byte cleared and the link uses `-fixup_chains` (`arm64e_retag.py`). The arm64e overlay's undefined symbols are those of the arm64 build (`llvm-nm -u` on our own output). The overlay has not been loaded by a guest yet; generic metadata, witness tables and vtables signed for arm64e are untested. It becomes a committed third slice only after a guest run proves it.
+
 ### Combine
 
 Apple's Combine is pure Swift: every symbol apps bind from it is Swift-mangled (protocol
@@ -153,6 +157,8 @@ See the header of `build.sh` for the required toolchain, resource directory, and
 `tests/uniform_type_identifiers.swift` covers the UniformTypeIdentifiers overlay: `UTType.folder` and the other symbols AppZapper 3000 imports, static type identifiers, conformance, supertypes, identifier/filename-extension/MIME/tag lookups (including dynamic types), preferred tags, exported and imported types, hashing, bridging to and from the Objective-C `UTType`, and `Codable` for `UTType` and `UTTagClass`. It passes 46/46 under Darling. Build it like the tests above with `-Xcc -fmodule-map-file=` for `UniformTypeIdentifiers/shims/module.modulemap`, and link `libswiftUniformTypeIdentifiers.dylib` and `libswiftFoundation.dylib`.
 
 `tests/coretext_adaptive_image_glyph.swift` covers the CoreText overlay: `AttributedString.AdaptiveImageGlyph` image content, equality, hashing, use in a `Set`, the `Codable` form with JSON and property-list round trips, and the conversion to `CTAdaptiveImageGlyph` called through the mangled name OpenSwiftUI binds. It passes 11/11 under Darling with darling-cocotron's `CTAdaptiveImageGlyph` installed. Run with `contentIdentifier`, `contentDescription` or `contentType` as its argument, it reads that member, which must trap with a message naming VibeDarling/darling#845. Build it with `-Xcc -fmodule-map-file=` for `CoreText/shims/module.modulemap` and `UniformTypeIdentifiers/shims/module.modulemap`, and link `libswiftCoreText.dylib`, `libswiftUniformTypeIdentifiers.dylib`, `libswiftFoundation.dylib` and CoreText.
+
+`tests/arm64e_retag_test.py` runs on any host: it feeds synthetic Mach-O headers to `arm64e_retag.py` and checks the arm64e relabelling of objects, dylibs and the arm64 slice of a fat file.
 
 ## CryptoKit
 
