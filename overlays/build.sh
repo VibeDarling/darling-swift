@@ -12,14 +12,50 @@
 #   DARLING_ROOT        installed Darling root (libexec/darling): libobjc and CoreFoundation are linked from it
 # Optional:
 #   LD_EXTRA_FLAGS      extra ld64 flags, e.g. the -dylib_file mappings Darling's own executables link with
+#   DARLING_SWIFT_ARCH  arm64 (default) or arm64e. arm64e builds into overlays/build-arm64e and leaves the repository
+#                       binaries alone, since a third slice is a separate decision. It needs SWIFT_RESOURCE_DIR to carry
+#                       an arm64e-apple-macos.swiftinterface beside each module's arm64 files, and DARLING_LD to be the
+#                       ld64 patched for 32-bit stores in chained fixups (cctools-port 9065c36).
+#                       The arm64e link word-splits its library paths, so none of them may contain whitespace; the arm64
+#                       link keeps its quoting.
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
 : "${SWIFT_TOOLCHAIN:?}" "${SWIFT_RESOURCE_DIR:?}" "${DARLING_SDK:?}" "${DARLING_LD:?}" "${DARLING_LIBSYSTEM:?}" "${DARLING_ROOT:?}"
 LD_EXTRA_FLAGS=${LD_EXTRA_FLAGS:-}
-out="$here/build"
+arch=${DARLING_SWIFT_ARCH:-arm64}
+case "$arch" in
+	arm64) out="$here/build" ;;
+	arm64e) out="$here/build-arm64e" ;;
+	*) echo "DARLING_SWIFT_ARCH must be arm64 or arm64e, not $arch" >&2; exit 1 ;;
+esac
 mkdir -p "$out/modules" "$out/obj"
+
+# arm64e links against relabelled copies of the arm64 dylibs (see arm64e_retag.py), and chained fixups are the only
+# arm64e format Darling's dyld signs.
+ld_arch_flags="-arch $arch"
+if [ "$arch" = arm64e ]; then
+	[ "${DARLING_SWIFT_APPKIT_ONLY:-0}" = 1 ] || { echo "DARLING_SWIFT_ARCH=arm64e needs DARLING_SWIFT_APPKIT_ONLY=1" >&2; exit 1; }
+	ld_arch_flags="$ld_arch_flags -fixup_chains"
+	mkdir -p "$out/arm64e-libs"
+fi
+
+# Clear the caps byte on a freshly compiled arm64e object; arm64 objects are left alone.
+retag_object() {
+	[ "$arch" = arm64e ] || return 0
+	python3 -I "$here/arm64e_retag.py" object "$1" "$1.retagged"
+	mv "$1.retagged" "$1"
+}
+
+# The path to link for a dylib: itself for arm64, its relabelled copy for arm64e.
+link_dylib() {
+	[ "$arch" = arm64e ] || { printf '%s' "$1"; return 0; }
+	dst="$out/arm64e-libs/$(basename "$1")"
+	# Always regenerate: $out holds overlays this build just rebuilt, and a cached copy would link a stale one.
+	python3 -I "$here/arm64e_retag.py" dylib "$1" "$dst"
+	printf '%s' "$dst"
+}
 
 # Write one source path per line, quoted, for swiftc's response file. Backslashes and quotes
 # are escaped: LLVM's tokenizer would otherwise turn such a path into a different filename
@@ -65,7 +101,7 @@ build_module() {
 	# Library evolution, like Apple's SDK overlays, so binaries built against the macOS SDK use the same access patterns.
 	# shellcheck disable=SC2086
 	"$SWIFT_TOOLCHAIN/bin/swiftc" -frontend -c @"$out/$module.sources" \
-		-target arm64-apple-macosx26.0 -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
+		-target "$arch-apple-macosx26.0" -sdk "$DARLING_SDK" -resource-dir "$SWIFT_RESOURCE_DIR" \
 		-module-cache-path "$out/module-cache" -swift-version 5 \
 		-module-name "$module" -module-link-name "swift$module" -autolink-force-load \
 		-enable-library-evolution -parse-as-library -O \
@@ -73,16 +109,66 @@ build_module() {
 		-Xcc -fmodule-map-file="$here/shims/overlay-shims.modulemap" \
 		-emit-module-path "$out/modules/$module.swiftmodule" \
 		-o "$out/obj/$module.o" $swift_flags
+	retag_object "$out/obj/$module.o"
 
-	# shellcheck disable=SC2086
-"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" -syslibroot "$DARLING_ROOT" \
-		-install_name "/usr/lib/swift/libswift$module.dylib" \
-		-compatibility_version 1.0.0 -current_version 1.0.0 \
-		$LD_EXTRA_FLAGS \
-		-L "$SWIFT_RESOURCE_DIR/macosx" -L "$out" \
-		"$out/obj/$module.o" "$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
-		-lswiftCore $link_inputs \
-		-o "$out/libswift$module.dylib"
+	ld_inputs="$DARLING_LIBSYSTEM $DARLING_ROOT/usr/lib/libobjc.A.dylib -lswiftCore $link_inputs"
+	ld_search="-L $SWIFT_RESOURCE_DIR/macosx -L $out"
+	if [ "$arch" = arm64e ]; then
+		# Resolve every library to its relabelled copy, since the arm64 originals have no arm64e slice to link.
+		# The compiler's autolink entries (Concurrency, StringProcessing) are found by -L, so relabel those up front.
+		for lib in "$SWIFT_RESOURCE_DIR"/macosx/libswift*.dylib; do link_dylib "$lib" > /dev/null; done
+		# The overlays autolink Darling's frameworks as -framework, found by -F.
+		for framework in CoreFoundation Foundation CoreGraphics AppKit; do
+			binary=$(ls "$DARLING_ROOT/System/Library/Frameworks/$framework.framework/Versions"/*/"$framework" | head -n 1)
+			mkdir -p "$out/arm64e-frameworks/$framework.framework"
+			python3 -I "$here/arm64e_retag.py" dylib "$binary" "$out/arm64e-frameworks/$framework.framework/$framework"
+		done
+		search_dirs="$out $SWIFT_RESOURCE_DIR/macosx"
+		previous=""
+		for token in $ld_inputs; do
+			[ "$previous" = -L ] && search_dirs="$search_dirs $token"
+			previous=$token
+		done
+		resolved=""
+		previous=""
+		for token in $ld_inputs; do
+			case "$token" in
+				-L) ;;
+				-l*) found=""
+					for dir in $search_dirs; do
+						[ -e "$dir/lib${token#-l}.dylib" ] && { found="$dir/lib${token#-l}.dylib"; break; }
+					done
+					[ -n "$found" ] || { echo "no $token in: $search_dirs" >&2; exit 1; }
+					resolved="$resolved $(link_dylib "$found")" ;;
+				*.o) resolved="$resolved $token" ;;
+				*) if [ "$previous" = -L ]; then :; else resolved="$resolved $(link_dylib "$token")"; fi ;;
+			esac
+			previous=$token
+		done
+		ld_inputs=$resolved
+		ld_search="-L $out/arm64e-libs -L $out -F $out/arm64e-frameworks"
+	fi
+
+	if [ "$arch" = arm64 ]; then
+		# shellcheck disable=SC2086
+		"$DARLING_LD" -dylib -arch arm64 -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" -syslibroot "$DARLING_ROOT" \
+			-install_name "/usr/lib/swift/libswift$module.dylib" \
+			-compatibility_version 1.0.0 -current_version 1.0.0 \
+			$LD_EXTRA_FLAGS \
+			-L "$SWIFT_RESOURCE_DIR/macosx" -L "$out" \
+			"$out/obj/$module.o" "$DARLING_LIBSYSTEM" "$DARLING_ROOT/usr/lib/libobjc.A.dylib" \
+			-lswiftCore $link_inputs \
+			-o "$out/libswift$module.dylib"
+	else
+		# shellcheck disable=SC2086
+		"$DARLING_LD" -dylib $ld_arch_flags -platform_version macos 26.0 26.0 -syslibroot "$DARLING_SDK" -syslibroot "$DARLING_ROOT" \
+			-install_name "/usr/lib/swift/libswift$module.dylib" \
+			-compatibility_version 1.0.0 -current_version 1.0.0 \
+			$LD_EXTRA_FLAGS \
+			$ld_search \
+			"$out/obj/$module.o" $ld_inputs \
+			-o "$out/libswift$module.dylib"
+	fi
 }
 
 corefoundation="$DARLING_ROOT/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation"
@@ -90,10 +176,12 @@ corefoundation="$DARLING_ROOT/System/Library/Frameworks/CoreFoundation.framework
 build_module Darwin "$here"/Darwin/*.swift
 build_module ObjectiveC "$here/ObjectiveC/ObjectiveC.swift" -- -disable-objc-attr-requires-foundation-module --link -lswiftDarwin
 build_module CoreFoundation "$here"/CoreFoundation/*.swift --link "$corefoundation" -lswiftDarwin
-"$SWIFT_TOOLCHAIN/bin/clang++" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" -I "$here/Dispatch/include" \
+"$SWIFT_TOOLCHAIN/bin/clang++" -target "$arch-apple-macosx26.0" -isysroot "$DARLING_SDK" -I "$here/Dispatch/include" \
 	-std=c++17 -fobjc-arc -O2 -c "$here/Dispatch/Dispatch.mm" -o "$out/obj/Dispatch.mm.o"
-"$SWIFT_TOOLCHAIN/bin/clang" -target arm64-apple-macosx26.0 -isysroot "$DARLING_SDK" -fobjc-arc -O2 \
+retag_object "$out/obj/Dispatch.mm.o"
+"$SWIFT_TOOLCHAIN/bin/clang" -target "$arch-apple-macosx26.0" -isysroot "$DARLING_SDK" -fobjc-arc -O2 \
 	-c "$here/Dispatch/DarlingSerialExecutor.m" -o "$out/obj/DarlingSerialExecutor.m.o"
+retag_object "$out/obj/DarlingSerialExecutor.m.o"
 build_module Dispatch "$here"/Dispatch/*.swift --link "$out/obj/Dispatch.mm.o" "$out/obj/DarlingSerialExecutor.m.o" -lswiftObjectiveC -lswiftDarwin
 build_module os "$here/os/os.swift" -- -Xcc -fmodule-map-file="$here/os/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
 build_module XPC "$here/XPC/XPC.swift" -- -Xcc -fmodule-map-file="$here/XPC/shims/module.modulemap" --link -lswiftDarwin -lswiftObjectiveC -lswiftDispatch
@@ -120,8 +208,10 @@ build_appkit_overlays() {
 	coregraphics="$DARLING_ROOT/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
 	build_module CoreGraphics "$here"/CoreGraphics/*.swift -- -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$coregraphics" "$corefoundation" -lswiftCoreFoundation -lswiftDarwin
 	build_module DeveloperToolsSupport "$here/DeveloperToolsSupport/DeveloperToolsSupport.swift" --link "$foundation" -lswiftFoundation -lswiftObjectiveC -lswiftDarwin -L "$repo"
-	cp "$out/libswiftDeveloperToolsSupport.dylib" "$repo/libswiftDeveloperToolsSupport.dylib"
-	echo "updated libswiftDeveloperToolsSupport.dylib: $(llvm-lipo -archs "$repo/libswiftDeveloperToolsSupport.dylib")"
+	if [ "$arch" = arm64 ]; then
+		cp "$out/libswiftDeveloperToolsSupport.dylib" "$repo/libswiftDeveloperToolsSupport.dylib"
+		echo "updated libswiftDeveloperToolsSupport.dylib: $(llvm-lipo -archs "$repo/libswiftDeveloperToolsSupport.dylib")"
+	fi
 	build_module AppKit "$here/AppKit/AppKit.swift" -- $(clang_module_flag AppKit APPKIT) -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin -lswiftDeveloperToolsSupport -L "$repo"
 }
 
@@ -129,6 +219,10 @@ build_appkit_overlays() {
 # change touches, skipping the Combine, Foundation and CryptoKit pipeline entirely.
 if [ "${DARLING_SWIFT_APPKIT_ONLY:-0}" = 1 ]; then
 	build_appkit_overlays
+	if [ "$arch" = arm64e ]; then
+		echo "built arm64e overlays in $out"
+		exit 0
+	fi
 	llvm-lipo -thin x86_64 "$repo/libswiftAppKit.dylib" -output "$out/AppKit.x86_64" 2>/dev/null || cp "$repo/libswiftAppKit.dylib" "$out/AppKit.x86_64"
 	llvm-lipo -create "$out/AppKit.x86_64" "$out/libswiftAppKit.dylib" -output "$repo/libswiftAppKit.dylib"
 	rm -f "$out/AppKit.x86_64"
