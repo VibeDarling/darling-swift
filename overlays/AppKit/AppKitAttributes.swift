@@ -13,8 +13,9 @@
 // mangled names below are the ones macOS apps and Foundation bind to.
 //
 // Encoding, observed on a real Mac (probe symbols_b_probe2.txt, macOS 26.1): an AttributedString encodes as a flat array
-// of text and attribute dictionaries keyed "NSFont" and "NSParagraphStyle"; the values are secure NSKeyedArchiver
-// archives (version 100000, the one top-level key "root"), written as Data by a property list encoder and as their base64
+// of text and attribute dictionaries keyed "NSFont" and "NSParagraphStyle"; the values are NSKeyedArchiver
+// archives (version 100000, the one top-level key "root"; that they were made with secure coding is INFERRED, not
+// observed, and the keys below archive with secure coding on that inference), written as Data by a property list encoder and as their base64
 // string by JSON (lines 1-35); a single NSFont through the key's own encode is one such string (lines 52-55). An NSFont
 // archive lists the classes NSFont and NSObject; an NSMutableParagraphStyle archive lists NSMutableParagraphStyle,
 // NSObject and NSParagraphStyle. The keys below do the same with NSKeyedArchiver. Darling's NSFont archive has the
@@ -23,7 +24,8 @@
 //
 // What differs: Darling's NSParagraphStyle does not support secure coding, so ParagraphStyleAttribute.encode throws
 // where a Mac archives the style; the conformance is declared anyway so that an archive made on a Mac reaches
-// decode, and the failure is loud. Not observed: whether decoding a Mac's NSFont archive works with Darling's NSFont.
+// decode, and the failure is loud. Not observed, in either direction: whether decoding a Mac's NSFont archive works
+// with Darling's NSFont, and whether a Mac decodes an NSFont archive that Darling made.
 //
 // The other documented attribute members of the scope (foregroundColor, kern, ...) and `accessibility` are not
 // defined: no analysed app has demanded them yet.

@@ -71,8 +71,8 @@ let unscoped = AttributeContainer(dict)
 check(unscoped.font === regular && unscoped.paragraphStyle === style, "default table converts NSFont and NSParagraphStyle")
 
 // The keys' own encode and decode (Darling's Foundation has no AttributedString: Codable), through a property list and a
-// JSON round trip. Observed on a real Mac (probe symbols_b_probe2.txt lines 19-35 and 52-55): the value is a secure
-// NSKeyedArchiver archive, written as Data by a property list encoder and as its base64 string by JSON; the archive is
+// JSON round trip. Observed on a real Mac (probe symbols_b_probe2.txt lines 19-35 and 52-55): the value is an
+// NSKeyedArchiver archive (secure coding is inferred, not observed), written as Data by a property list encoder and as its base64 string by JSON; the archive is
 // version 100000 with the single top-level key "root", and an NSFont archive lists the classes NSFont and NSObject.
 struct FontBox: Codable {
     let font: NSFont
@@ -116,7 +116,7 @@ do {
     let shape = archive.flatMap(archiveShape)
     check(archive != nil, "a property list encoder writes the font as Data")
     check(shape?.archiver == "NSKeyedArchiver" && shape?.version == 100000 && shape?.top == ["root"],
-          "the archive is a secure NSKeyedArchiver archive, version 100000, top key root (\(String(describing: shape)))")
+          "the archive is an NSKeyedArchiver archive, version 100000, top key root (\(String(describing: shape)))")
     check(shape?.classes == ["NSFont", "NSObject"], "the archive lists exactly NSFont and NSObject (\(shape?.classes.sorted() ?? []))")
     let fonts = try PropertyListDecoder().decode([FontBox].self, from: encoded)
     check(fonts.count == 1 && fonts[0].font.fontName == bold.fontName && fonts[0].font.pointSize == bold.pointSize,
