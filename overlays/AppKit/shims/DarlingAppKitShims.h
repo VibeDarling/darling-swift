@@ -61,8 +61,28 @@ typedef enum NSBezelStyle : NSUInteger {
 @interface NSSound : NSObject
 @end
 
+// Darling's +sectionHeaderWithTitle: has no Swift name; this one (sectionHeader(withTitle:)) is what the overlay calls,
+// so it does not clash with the public sectionHeader(title:) the overlay defines.
+@interface NSApplication : NSObject
+@end
+@interface NSMenuItem : NSObject
++ (NSMenuItem *)sectionHeaderWithTitle:(NSString *)title;
+@property (readonly, getter=isEnabled) BOOL enabled;
+@property (copy, readonly) NSString *title;
+@end
+
 @interface NSImage : NSObject
 + (nullable instancetype)imageNamed:(NSString *)name;
+@end
+
+// Classes the suggestions API names. Only their identity matters to Swift.
+@interface NSResponder : NSObject
+@end
+@interface NSView : NSResponder
+@end
+@interface NSControl : NSView
+@end
+@interface NSTextField : NSControl
 @end
 
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);
