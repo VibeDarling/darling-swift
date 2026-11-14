@@ -122,7 +122,7 @@ build_appkit_overlays() {
 	build_module DeveloperToolsSupport "$here/DeveloperToolsSupport/DeveloperToolsSupport.swift" --link "$foundation" -lswiftFoundation -lswiftObjectiveC -lswiftDarwin -L "$repo"
 	cp "$out/libswiftDeveloperToolsSupport.dylib" "$repo/libswiftDeveloperToolsSupport.dylib"
 	echo "updated libswiftDeveloperToolsSupport.dylib: $(llvm-lipo -archs "$repo/libswiftDeveloperToolsSupport.dylib")"
-	build_module AppKit "$here/AppKit/AppKit.swift" -- $(clang_module_flag AppKit APPKIT) -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin -lswiftDeveloperToolsSupport -L "$repo"
+	build_module AppKit "$here"/AppKit/*.swift -- $(clang_module_flag AppKit APPKIT) -Xcc -fmodule-map-file="$here/AppKit/shims/module.modulemap" -Xcc -fmodule-map-file="$here/CoreGraphics/shims/module.modulemap" --link "$appkit" "$foundation" -lswiftFoundation -lswiftCoreGraphics -lswiftCoreFoundation -lswiftObjectiveC -lswiftDarwin -lswiftDeveloperToolsSupport -L "$repo"
 }
 
 # Focused mode, mirroring DARLING_SWIFT_FOUNDATION_ONLY: build and publish just the overlays this
