@@ -65,6 +65,29 @@ typedef enum NSBezelStyle : NSUInteger {
 + (nullable instancetype)imageNamed:(NSString *)name;
 @end
 
+// NSToolbarItem.VisibilityPriority is imported by Swift as a RawRepresentable struct (NS_TYPED_EXTENSIBLE_ENUM) that
+// mangles as `So31NSToolbarItemVisibilityPrioritya`, the name the macOS 26 apps' conformance import uses. The four
+// constants' VALUES are a GUESS taken from Darling's own NSToolbarItem.h (the public documentation names them but gives no
+// numbers; NEEDS-REAL-MAC); nothing outside this shim and the test depends on them. NSLayoutConstraint.Priority needs no
+// declaration here: Darling's Foundation headers declare it (NSLayoutConstraint.h).
+@interface NSToolbarItem : NSObject
+@end
+typedef NSInteger NSToolbarItemVisibilityPriority NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSToolbarItem.VisibilityPriority);
+static const NSToolbarItemVisibilityPriority NSToolbarItemVisibilityPriorityStandard NS_SWIFT_NAME(NSToolbarItem.VisibilityPriority.standard) = 0;
+static const NSToolbarItemVisibilityPriority NSToolbarItemVisibilityPriorityLow NS_SWIFT_NAME(NSToolbarItem.VisibilityPriority.low) = -1000;
+static const NSToolbarItemVisibilityPriority NSToolbarItemVisibilityPriorityHigh NS_SWIFT_NAME(NSToolbarItem.VisibilityPriority.high) = 1000;
+static const NSToolbarItemVisibilityPriority NSToolbarItemVisibilityPriorityUser NS_SWIFT_NAME(NSToolbarItem.VisibilityPriority.user) = 2000;
+
+// Classes the suggestions API names. Only their identity matters to Swift.
+@interface NSResponder : NSObject
+@end
+@interface NSView : NSResponder
+@end
+@interface NSControl : NSView
+@end
+@interface NSTextField : NSControl
+@end
+
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);
 void NSFrameRectWithWidthUsingOperation(NSRect rect, CGFloat frameWidth, NSCompositingOperation operation);
 void NSBeep(void);
