@@ -68,6 +68,18 @@ extension NSImage {
     }
 }
 
+extension NSColor {
+    // Ported from swiftlang/swift swift-5.2.2-RELEASE, stdlib/public/Darwin/AppKit/AppKit.swift.
+    // Copyright (c) 2014 - 2017 Apple Inc. and the Swift project authors; Apache 2.0 with Runtime Library Exception.
+    // The original declares it `required` inside `extension NSColor : _ExpressibleByColorLiteral`. Swift 6.3.3 rejects a
+    // `required` initializer in an extension of the shim's NSColor, so the conformance is left out: the symbol
+    // `#colorLiteral` expands to is still exported, and no analysed app imports the conformance descriptor.
+    @nonobjc
+    public convenience init(_colorLiteralRed red: Float, green: Float, blue: Float, alpha: Float) {
+        self.init(red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: CGFloat(alpha))
+    }
+}
+
 extension NSBezelStyle {
     /// The bezel style that draws the Liquid Glass button appearance.
     public static var _glass: NSBezelStyle {
