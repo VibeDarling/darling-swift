@@ -65,6 +65,21 @@ typedef enum NSBezelStyle : NSUInteger {
 + (nullable instancetype)imageNamed:(NSString *)name;
 @end
 
+// Classes the suggestions API names. Only their identity matters to Swift.
+@interface NSResponder : NSObject
+- (void)invalidateRestorableState;
+@end
+@interface NSView : NSResponder
+@property BOOL needsLayout;
+@property BOOL needsDisplay;
+@property BOOL needsUpdateConstraints;
+- (void)invalidateIntrinsicContentSize;
+@end
+@interface NSControl : NSView
+@end
+@interface NSTextField : NSControl
+@end
+
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);
 void NSFrameRectWithWidthUsingOperation(NSRect rect, CGFloat frameWidth, NSCompositingOperation operation);
 void NSBeep(void);
