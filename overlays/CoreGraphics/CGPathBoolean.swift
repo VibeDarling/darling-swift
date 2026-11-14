@@ -3,13 +3,14 @@
 // (developer.apple.com/documentation/coregraphics/cgpath/union(_:using:) and its two siblings:
 // `func union(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath`).
 //
-// Podcasts imports all three. Darling's CoreGraphics exports no C function for path boolean operations
-// (no CGPathCreateCopyByUnioningPath and so on), so the methods are declared and trap with a message naming
-// the missing function, the way CGPath.copy(dashingWithPhase:lengths:transform:) does for its stub.
+// CGPathFillRule is the declaration in swiftlang/swift release/5.4, stdlib/public/Darwin/CoreGraphics/CoreGraphics.swift
+// (`public enum CGPathFillRule: Int { case winding; case evenOdd }`; Copyright (c) 2014 - 2017 Apple Inc. and the
+// Swift project authors; Apache License v2.0 with Runtime Library Exception), without its documentation comments.
+// A real Mac confirms the raw type and values: Int, winding 0, evenOdd 1 (probe symbols_b_probe1.txt lines 15-16).
 //
-// GUESS / NEEDS-REAL-MAC, not in the public documentation: CGPathFillRule's raw type and values. The
-// documentation gives `enum CGPathFillRule` with cases `winding` and `evenOdd`, conforming to Equatable,
-// Hashable and RawRepresentable; Int with winding = 0 and evenOdd = 1 is a guess (the order of the cases).
+// Podcasts imports all three methods. Darling's CoreGraphics exports no C function for path boolean operations (no
+// CGPathCreateCopyByUnioningPath and so on), so the methods are declared and trap with a message naming the
+// operation, the way open PR #106 does for CGPath.copy(dashingWithPhase:lengths:transform:)'s NULL-returning stub.
 
 public enum CGPathFillRule : Int {
   case winding = 0
