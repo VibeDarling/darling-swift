@@ -70,7 +70,10 @@ do {
 let unscoped = AttributeContainer(dict)
 check(unscoped.font === regular && unscoped.paragraphStyle === style, "default table converts NSFont and NSParagraphStyle")
 
-// The keys' own encode and decode (Darling's Foundation has no AttributedString: Codable), through a JSON round trip.
+// The keys' own encode and decode (Darling's Foundation has no AttributedString: Codable), through a property list and a
+// JSON round trip. Observed on a real Mac (probe symbols_b_probe2.txt lines 19-35 and 52-55): the value is a secure
+// NSKeyedArchiver archive, written as Data by a property list encoder and as its base64 string by JSON; the archive is
+// version 100000 with the single top-level key "root", and an NSFont archive lists the classes NSFont and NSObject.
 struct FontBox: Codable {
     let font: NSFont
     init(_ font: NSFont) { self.font = font }
@@ -83,20 +86,64 @@ struct StyleBox: Codable {
     func encode(to encoder: Encoder) throws { try Para.encode(style, to: encoder) }
     init(from decoder: Decoder) throws { style = try Para.decode(from: decoder) }
 }
-do {
-    let fonts = try JSONDecoder().decode([FontBox].self, from: try JSONEncoder().encode([FontBox(bold)]))
-    check(fonts.count == 1 && fonts[0].font.fontName == bold.fontName && fonts[0].font.pointSize == bold.pointSize,
-          "FontAttribute encodes and decodes an NSFont")
-} catch {
-    check(false, "FontAttribute round trip threw \(error)")
+
+struct ArchiveShape {
+    var archiver: String?
+    var version: Int?
+    var top: [String]
+    var classes: Set<String>
 }
-// Known gap: Darling's NSParagraphStyle does not support secure coding, so archiving one throws (the real one is
-// NSSecureCoding). The conformance is declared and fails loudly instead of dropping the style.
+
+func archiveShape(_ data: Data) -> ArchiveShape? {
+    guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else { return nil }
+    var classes = Set<String>()
+    for object in plist["$objects"] as? [Any] ?? [] {
+        if let entry = object as? [String: Any], let names = entry["$classes"] as? [String] { classes.formUnion(names) }
+    }
+    let archiver = plist["$archiver"] as? String
+    let version = plist["$version"] as? Int
+    let topDictionary = plist["$top"] as? [String: Any]
+    let top: [String] = topDictionary.map { Array($0.keys).sorted() } ?? []
+    return ArchiveShape(archiver: archiver, version: version, top: top, classes: classes)
+}
+
 do {
-    let styles = try JSONDecoder().decode([StyleBox].self, from: try JSONEncoder().encode([StyleBox(style)]))
-    check(styles.count == 1 && type(of: styles[0].style) == type(of: style), "ParagraphStyleAttribute encodes and decodes an NSParagraphStyle")
+    let encoder = PropertyListEncoder()
+    encoder.outputFormat = .binary
+    let encoded = try encoder.encode([FontBox(bold)])
+    let list = try PropertyListSerialization.propertyList(from: encoded, options: [], format: nil) as? [Any]
+    let archive = list?.first as? Data
+    let shape = archive.flatMap(archiveShape)
+    check(archive != nil, "a property list encoder writes the font as Data")
+    check(shape?.archiver == "NSKeyedArchiver" && shape?.version == 100000 && shape?.top == ["root"],
+          "the archive is a secure NSKeyedArchiver archive, version 100000, top key root (\(String(describing: shape)))")
+    check(shape?.classes == ["NSFont", "NSObject"], "the archive lists exactly NSFont and NSObject (\(shape?.classes.sorted() ?? []))")
+    let fonts = try PropertyListDecoder().decode([FontBox].self, from: encoded)
+    check(fonts.count == 1 && fonts[0].font.fontName == bold.fontName && fonts[0].font.pointSize == bold.pointSize,
+          "FontAttribute decodes the property list back to an NSFont")
 } catch {
-    print("info: ParagraphStyleAttribute archiving throws in this AppKit (known gap)")
+    check(false, "FontAttribute property list round trip threw \(error)")
+}
+do {
+    let json = try JSONEncoder().encode([FontBox(bold)])
+    let strings = try JSONSerialization.jsonObject(with: json) as? [String]
+    let archive = strings?.first.flatMap { Data(base64Encoded: $0) }
+    check(strings?.count == 1 && archive != nil && archiveShape(archive!)?.top == ["root"], "JSON writes the same archive as a base64 string")
+    let fonts = try JSONDecoder().decode([FontBox].self, from: json)
+    check(fonts.count == 1 && fonts[0].font.fontName == bold.fontName && fonts[0].font.pointSize == bold.pointSize,
+          "FontAttribute decodes the JSON back to an NSFont")
+} catch {
+    check(false, "FontAttribute JSON round trip threw \(error)")
+}
+
+// Known gap: Darling's NSParagraphStyle does not support secure coding, so archiving one throws, where a Mac archives
+// it (classes NSMutableParagraphStyle, NSObject and NSParagraphStyle for a mutable style; probe symbols_b_probe2.txt
+// line 29). The conformance is declared and fails loudly instead of dropping the style.
+do {
+    _ = try JSONEncoder().encode([StyleBox(style)])
+    check(false, "archiving an NSParagraphStyle is expected to throw in this AppKit (known gap); if it works now, pin the Mac's archive shape")
+} catch {
+    check(true, "archiving an NSParagraphStyle throws (known gap), it is not dropped silently")
 }
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILED")

@@ -12,12 +12,18 @@
 // Foundation finds this scope by looking up its type metadata symbol in AppKit (see _loadDefaultAttributes), so the
 // mangled names below are the ones macOS apps and Foundation bind to.
 //
-// GUESS, not observed: the encoding. The keys archive the value with NSKeyedArchiver (secure coding) and encode the
-// resulting Data as a single value, which is what swift-foundation's own NSSecureCoding default does for keys whose
-// value is an NSObject; the real format was not probed. Darling's Foundation has no AttributedString: Codable (it is
-// FOUNDATION_FRAMEWORK-only upstream), so only the keys' encode and decode are reachable here. Darling's
-// NSParagraphStyle does not support secure coding, so ParagraphStyleAttribute.encode throws until it does; the
-// conformance is declared anyway so that an archive made on a Mac decodes, and the failure is loud.
+// Encoding, observed on a real Mac (probe symbols_b_probe2.txt, macOS 26.1): an AttributedString encodes as a flat array
+// of text and attribute dictionaries keyed "NSFont" and "NSParagraphStyle"; the values are secure NSKeyedArchiver
+// archives (version 100000, the one top-level key "root"), written as Data by a property list encoder and as their base64
+// string by JSON (lines 1-35); a single NSFont through the key's own encode is one such string (lines 52-55). An NSFont
+// archive lists the classes NSFont and NSObject; an NSMutableParagraphStyle archive lists NSMutableParagraphStyle,
+// NSObject and NSParagraphStyle. The keys below do the same with NSKeyedArchiver. Darling's NSFont archive has the
+// same shape (tests/appkit_attributes.swift pins it). Darling's Foundation has no AttributedString: Codable (it is
+// FOUNDATION_FRAMEWORK-only upstream), so only the keys' encode and decode are reachable here.
+//
+// What differs: Darling's NSParagraphStyle does not support secure coding, so ParagraphStyleAttribute.encode throws
+// where a Mac archives the style; the conformance is declared anyway so that an archive made on a Mac reaches
+// decode, and the failure is loud. Not observed: whether decoding a Mac's NSFont archive works with Darling's NSFont.
 //
 // The other documented attribute members of the scope (foregroundColor, kern, ...) and `accessibility` are not
 // defined: no analysed app has demanded them yet.
