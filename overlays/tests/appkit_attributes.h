@@ -6,3 +6,8 @@
 + (nonnull NSFont *)systemFontOfSize:(CGFloat)size;
 + (nonnull NSFont *)boldSystemFontOfSize:(CGFloat)size;
 @end
+
+@interface NSFont (DarlingTestMetrics)
+@property (readonly, copy) NSString *fontName;
+@property (readonly) CGFloat pointSize;
+@end

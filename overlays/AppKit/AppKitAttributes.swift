@@ -1,22 +1,26 @@
 // AttributeScopes.AppKitAttributes with its font and paragraph style attributes, for AttributedString.
 //
-// Written from Apple's public documentation (developer.apple.com/documentation/foundation/attributescopes/appkitattributes
-// and .../fontattribute), which gives this: AppKitAttributes is a struct conforming to AttributeScope; FontAttribute is a
-// @frozen enum conforming to AttributedStringKey, DecodableAttributedStringKey and EncodableAttributedStringKey; the
-// scope has instance properties such as `font: AttributeScopes.AppKitAttributes.FontAttribute`, `paragraphStyle` and
-// `foundation`.
-// The Foundation overlay finds this scope by looking up its type metadata symbol in AppKit (see _loadDefaultAttributes),
-// so the mangled names below are the ones macOS apps and Foundation bind to.
+// Provenance. Apple's public documentation (developer.apple.com/documentation/foundation/attributescopes/appkitattributes
+// and .../fontattribute) gives: AppKitAttributes is a struct conforming to AttributeScope with instance properties such
+// as `font`, `paragraphStyle` and `foundation`; FontAttribute is a @frozen enum conforming to AttributedStringKey,
+// DecodableAttributedStringKey and EncodableAttributedStringKey. The values below were observed on a real Mac
+// (macOS 26.1, Swift 6.2.4; probe symbols_b_probe1.swift, output symbols_b_probe1.txt lines 1-14): FontAttribute.name
+// and NSAttributedString.Key.font.rawValue are "NSFont" and Value is NSFont; ParagraphStyleAttribute.name and
+// NSAttributedString.Key.paragraphStyle.rawValue are "NSParagraphStyle" and Value is NSParagraphStyle; both keys are
+// Decodable and Encodable, neither is ObjectiveCConvertible, and both are zero-size enums.
 //
-// GUESS / NEEDS-REAL-MAC, not in the public documentation:
-//  - FontAttribute.Value is NSFont and ParagraphStyleAttribute.Value is NSParagraphStyle (the types the matching
-//    NSAttributedString keys carry);
-//  - FontAttribute.name is "NSFont" and ParagraphStyleAttribute.name is "NSParagraphStyle" (the raw values of
-//    NSAttributedString.Key.font and .paragraphStyle, as FoundationAttributes.LinkAttribute hard-codes "NSLink");
-//  - the Decodable/EncodableAttributedStringKey conformances are left out (they need a secure-coding encoding of the
-//    value whose format the documentation does not give).
-// The other documented attribute members of the scope (foregroundColor, kern, ...) and `accessibility` are not defined:
-// no analysed app has demanded them yet.
+// Foundation finds this scope by looking up its type metadata symbol in AppKit (see _loadDefaultAttributes), so the
+// mangled names below are the ones macOS apps and Foundation bind to.
+//
+// GUESS, not observed: the encoding. The keys archive the value with NSKeyedArchiver (secure coding) and encode the
+// resulting Data as a single value, which is what swift-foundation's own NSSecureCoding default does for keys whose
+// value is an NSObject; the real format was not probed. Darling's Foundation has no AttributedString: Codable (it is
+// FOUNDATION_FRAMEWORK-only upstream), so only the keys' encode and decode are reachable here. Darling's
+// NSParagraphStyle does not support secure coding, so ParagraphStyleAttribute.encode throws until it does; the
+// conformance is declared anyway so that an archive made on a Mac decodes, and the failure is loud.
+//
+// The other documented attribute members of the scope (foregroundColor, kern, ...) and `accessibility` are not
+// defined: no analysed app has demanded them yet.
 
 @_exported import Foundation
 #if DARLING_APPKIT_CLANG_MODULE
@@ -46,20 +50,36 @@ extension AttributeDynamicLookup {
 @available(macOS 12, *)
 extension AttributeScopes.AppKitAttributes {
     @frozen
-    public enum FontAttribute : AttributedStringKey {
+    public enum FontAttribute : EncodableAttributedStringKey, DecodableAttributedStringKey {
         public typealias Value = NSFont
 
         public static var name: String { "NSFont" }
+
+        public static func encode(_ value: NSFont, to encoder: Encoder) throws {
+            try encodeArchived(value, to: encoder)
+        }
+
+        public static func decode(from decoder: Decoder) throws -> NSFont {
+            return try decodeArchived(NSFont.self, from: decoder)
+        }
     }
 }
 
 @available(macOS 12, *)
 extension AttributeScopes.AppKitAttributes {
     @frozen
-    public enum ParagraphStyleAttribute : AttributedStringKey {
+    public enum ParagraphStyleAttribute : EncodableAttributedStringKey, DecodableAttributedStringKey {
         public typealias Value = NSParagraphStyle
 
         public static var name: String { "NSParagraphStyle" }
+
+        public static func encode(_ value: NSParagraphStyle, to encoder: Encoder) throws {
+            try encodeArchived(value, to: encoder)
+        }
+
+        public static func decode(from decoder: Decoder) throws -> NSParagraphStyle {
+            return try decodeArchived(NSParagraphStyle.self, from: decoder)
+        }
     }
 }
 
@@ -68,3 +88,18 @@ extension AttributeScopes.AppKitAttributes.FontAttribute : Sendable {}
 
 @available(macOS 12, *)
 extension AttributeScopes.AppKitAttributes.ParagraphStyleAttribute : Sendable {}
+
+private func encodeArchived(_ value: NSObject, to encoder: Encoder) throws {
+    let data = try NSKeyedArchiver.archivedData(withRootObject: value, requiringSecureCoding: true)
+    var container = encoder.singleValueContainer()
+    try container.encode(data)
+}
+
+private func decodeArchived<T: NSObject & NSSecureCoding>(_ type: T.Type, from decoder: Decoder) throws -> T {
+    let container = try decoder.singleValueContainer()
+    let data = try container.decode(Data.self)
+    guard let result = try NSKeyedUnarchiver.unarchivedObject(ofClass: type, from: data) else {
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unable to unarchive object, result was nil"))
+    }
+    return result
+}

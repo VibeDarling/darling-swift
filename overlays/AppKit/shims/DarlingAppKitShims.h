@@ -65,10 +65,10 @@ typedef enum NSBezelStyle : NSUInteger {
 + (nullable instancetype)imageNamed:(NSString *)name;
 @end
 
-@interface NSFont : NSObject
+@interface NSFont : NSObject <NSCopying, NSSecureCoding>
 @end
 
-@interface NSParagraphStyle : NSObject
+@interface NSParagraphStyle : NSObject <NSCopying, NSSecureCoding>
 @end
 
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);

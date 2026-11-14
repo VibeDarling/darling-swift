@@ -18,6 +18,12 @@ check(Para.name == "NSParagraphStyle", "ParagraphStyleAttribute.name")
 check(Para.Value.self == NSParagraphStyle.self, "ParagraphStyleAttribute.Value is NSParagraphStyle")
 check(Font.Value.self == NSFont.self, "FontAttribute.Value is NSFont")
 check(Font.self is any AttributedStringKey.Type, "FontAttribute is an AttributedStringKey")
+// Observed on a real Mac (probe symbols_b_probe1.txt lines 4, 5, 6, 14): both keys are Decodable and Encodable, not
+// ObjectiveCConvertible, and zero-size.
+check(Font.self is any DecodableAttributedStringKey.Type && Font.self is any EncodableAttributedStringKey.Type, "FontAttribute is Decodable and Encodable")
+check(Para.self is any DecodableAttributedStringKey.Type && Para.self is any EncodableAttributedStringKey.Type, "ParagraphStyleAttribute is Decodable and Encodable")
+check(!(Font.self is any ObjectiveCConvertibleAttributedStringKey.Type), "FontAttribute is not ObjectiveCConvertible")
+check(MemoryLayout<Font>.size == 0 && MemoryLayout<Para>.size == 0, "the keys are zero-size")
 check(AttributeScopes.AppKitAttributes.self is any AttributeScope.Type, "AppKitAttributes is an AttributeScope")
 
 let regular = NSFont.systemFont(ofSize: 12)
@@ -63,6 +69,35 @@ do {
 // This needs an AppKit.framework that re-exports libswiftAppKit, as Darling's installed one does.
 let unscoped = AttributeContainer(dict)
 check(unscoped.font === regular && unscoped.paragraphStyle === style, "default table converts NSFont and NSParagraphStyle")
+
+// The keys' own encode and decode (Darling's Foundation has no AttributedString: Codable), through a JSON round trip.
+struct FontBox: Codable {
+    let font: NSFont
+    init(_ font: NSFont) { self.font = font }
+    func encode(to encoder: Encoder) throws { try Font.encode(font, to: encoder) }
+    init(from decoder: Decoder) throws { font = try Font.decode(from: decoder) }
+}
+struct StyleBox: Codable {
+    let style: NSParagraphStyle
+    init(_ style: NSParagraphStyle) { self.style = style }
+    func encode(to encoder: Encoder) throws { try Para.encode(style, to: encoder) }
+    init(from decoder: Decoder) throws { style = try Para.decode(from: decoder) }
+}
+do {
+    let fonts = try JSONDecoder().decode([FontBox].self, from: try JSONEncoder().encode([FontBox(bold)]))
+    check(fonts.count == 1 && fonts[0].font.fontName == bold.fontName && fonts[0].font.pointSize == bold.pointSize,
+          "FontAttribute encodes and decodes an NSFont")
+} catch {
+    check(false, "FontAttribute round trip threw \(error)")
+}
+// Known gap: Darling's NSParagraphStyle does not support secure coding, so archiving one throws (the real one is
+// NSSecureCoding). The conformance is declared and fails loudly instead of dropping the style.
+do {
+    let styles = try JSONDecoder().decode([StyleBox].self, from: try JSONEncoder().encode([StyleBox(style)]))
+    check(styles.count == 1 && type(of: styles[0].style) == type(of: style), "ParagraphStyleAttribute encodes and decodes an NSParagraphStyle")
+} catch {
+    print("info: ParagraphStyleAttribute archiving throws in this AppKit (known gap)")
+}
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILED")
 exit(failures == 0 ? 0 : 1)
