@@ -65,6 +65,18 @@ typedef enum NSBezelStyle : NSUInteger {
 + (nullable instancetype)imageNamed:(NSString *)name;
 @end
 
+@interface NSMenu : NSObject
+@end
+
+// Declared flat: the overlay needs only these members, not NSButton, NSControl or NSView.
+@interface NSPopUpButton : NSObject
+- (instancetype)initWithFrame:(NSRect)frameRect pullsDown:(BOOL)flag;
+@property (readonly) BOOL pullsDown;
+@property (copy) NSString *title;
+@property (nullable, strong) NSImage *image;
+@property (nullable, strong) NSMenu *menu;
+@end
+
 void NSRectFillUsingOperation(NSRect rect, NSCompositingOperation operation);
 void NSFrameRectWithWidthUsingOperation(NSRect rect, CGFloat frameWidth, NSCompositingOperation operation);
 void NSBeep(void);
