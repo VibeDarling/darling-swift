@@ -18,6 +18,11 @@
 //
 // The title is set on the button's cell, through key-value coding, because Darling's NSPopUpButton -setTitle: on a
 // pull-down button renames the menu's first item (and raises on an empty menu), which the Mac does not do.
+//
+// Known limitation: the title does not last. Darling's NSPopUpButtonCell has no `usesItemFromMenu`, so after
+// -synchronizeTitleAndSelectedItem or a selection change (selectItem(at:)) the button shows the first item's title
+// again, where the Mac keeps the title it was given because usesItemFromMenu is false. The real fix is
+// `usesItemFromMenu` in Cocotron's NSPopUpButtonCell (a follow-up); this file cannot do it.
 
 @_exported import Foundation
 #if DARLING_APPKIT_CLANG_MODULE
@@ -44,6 +49,11 @@ extension NSPopUpButton {
     }
 
     private func setCellTitle(_ title: String) {
-        (value(forKey: "cell") as? NSObject)?.setValue(title, forKey: "title")
+        // An NSPopUpButton always has a cell; a missing one means the key-value route no longer works, so stop
+        // instead of leaving the title silently unset.
+        guard let cell = value(forKey: "cell") as? NSObject else {
+            fatalError("NSPopUpButton has no cell: cannot set the pull-down button's title")
+        }
+        cell.setValue(title, forKey: "title")
     }
 }
