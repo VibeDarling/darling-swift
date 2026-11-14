@@ -71,6 +71,7 @@ typedef enum NSBezelStyle : NSUInteger {
 @interface NSView : NSResponder
 @end
 @interface NSControl : NSView
+@property (copy) NSString *stringValue;
 @end
 @interface NSTextField : NSControl
 @end
