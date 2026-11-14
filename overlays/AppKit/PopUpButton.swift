@@ -9,8 +9,9 @@
 // the first still titled "first"); the image-only form has title "" and keeps the image (`image === img`),
 // usesItemFromMenu false and titleOfSelectedItem "first"; the title form with image nil has title "T".
 //
-// GUESS / NEEDS-REAL-MAC: what the Mac does with an EMPTY menu (probe symbols_b_probe2 asks). Here the button is
-// made with the menu as given, the title is stored, and nothing is added to the menu.
+// An EMPTY menu, also observed on the Mac (probe symbols_b_probe2.txt lines 56-58): both forms give pullsDown true,
+// leave the menu with 0 items, and titleOfSelectedItem nil; the title is "" for the image-only form and "T" for the
+// title form. Nothing is added to the menu and nothing is raised here either.
 //
 // Known gaps in Darling's AppKit, not in this file: NSPopUpButtonCell has no `usesItemFromMenu` and its -setImage:
 // has no effect (it takes a pull-down button's image from the menu's first item), so the image is stored but not
